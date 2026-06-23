@@ -1,53 +1,54 @@
 import streamlit as st
-import imagehash
-from PIL import Image
 import os
-import json
+from PIL import Image
 
-# Caricamento descrizioni
-def load_desc():
-    with open('descrizioni.json', 'r') as f:
-        return json.load(f)
+# Configurazione della pagina
+st.set_page_config(page_title="La mia App Cloud", layout="wide")
 
-# Calcola hash della foto
-def get_hash(image):
-    return imagehash.phash(image)
+# 1. Definiamo la cartella dove sono le foto nel repository GitHub
+IMAGE_FOLDER = "images"
 
-st.title("📷 Riconoscitore Foto (Lightweight)")
+st.title("La mia App su Streamlit Cloud ☁️")
+st.write("Questa app legge le foto dalla cartella 'images' del repository.")
 
-# Caricamento database
-if os.path.exists('descrizioni.json'):
-    descrizioni = load_desc()
-else:
-    descrizioni = {}
-
-uploaded_file = st.file_uploader("Carica una foto per il confronto...", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    img_test = Image.open(uploaded_file)
-    st.image(img_test, caption='Foto caricata', width=300)
+# 2. Funzione per caricare le immagini
+def load_image(image_name):
+    """Carica un'immagine dalla cartella definita, gestendo gli errori."""
+    path = os.path.join(IMAGE_FOLDER, image_name)
     
-    if st.button("Confronta nel DB"):
-        hash_test = get_hash(img_test)
-        trovato = None
-        min_dist = 100 # Soglia di tolleranza (più è alto, più è permissivo)
-        
-        # Scansione cartella database
-        for filename in os.listdir('database_foto'):
-            path = os.path.join('database_foto', filename)
-            img_db = Image.open(path)
-            hash_db = get_hash(img_db)
-            
-            # Calcolo distanza di Hamming (differenza tra hash)
-            distanza = hash_test - hash_db
-            
-            if distanza < min_dist:
-                min_dist = distanza
-                trovato = filename
-        
-        if trovato and min_dist < 15: # Soglia di somiglianza
-            st.success(f"Trovata corrispondenza: {trovato}")
-            st.write(f"**Descrizione:** {descrizioni.get(trovato, 'Nessuna descrizione disponibile')}")
-        else:
-            st.warning("Nessuna immagine simile trovata nel database.")
+    # Verifica che il file esista realmente
+    if os.path.exists(path):
+        try:
+            return Image.open(path)
+        except Exception as e:
+            st.error(f"Impossibile aprire l'immagine {image_name}: {e}")
+            return None
+    else:
+        st.error(f"Errore: Il file '{image_name}' non esiste nella cartella '{IMAGE_FOLDER}/'.")
+        return None
 
+# 3. Esempio di visualizzazione
+# Sostituisci 'foto1.jpg' con il nome reale di una tua foto caricata
+nome_foto = "foto1.jpg" 
+st.subheader(f"Anteprima: {nome_foto}")
+
+img = load_image(nome_foto)
+
+if img:
+    st.image(img, caption="Ecco la tua foto dal cloud!", use_container_width=True)
+else:
+    st.warning("Carica almeno una foto chiamata 'foto1.jpg' nella cartella 'images' su GitHub per vedere l'anteprima.")
+
+# 4. (Opzionale) Lista automatica di tutte le foto nella cartella
+st.divider()
+st.subheader("Galleria automatica")
+if os.path.exists(IMAGE_FOLDER):
+    files = [f for f in os.listdir(IMAGE_FOLDER) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    if files:
+        cols = st.columns(3) # Crea 3 colonne per la galleria
+        for i, file in enumerate(files):
+            img = load_image(file)
+            if img:
+                cols[i % 3].image(img, caption=file, use_container_width=True)
+    else:
+        st.write("La cartella 'images' è vuota o non contiene immagini valide.")
