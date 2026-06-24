@@ -5,67 +5,54 @@ import imagehash
 import io
 import os
 
-st.title("Verifica Immagine da Catalogo PDF 📄")
+st.title("Catalogo Scanner 🔍")
 
-# Nome del tuo file PDF su GitHub
+# PUNTO CRITICO: Il nome della cartella deve essere esattamente questo
+DB_FOLDER = "database_foto" 
 PDF_FILE = "catalogo.pdf"
 
 @st.cache_data
-def load_pdf_data(pdf_path):
-    """Estrae immagini e testo dal PDF."""
-    db_data = {}
-    if not os.path.exists(pdf_path):
-        return None
+def get_data():
+    data = []
     
-    doc = fitz.open(pdf_path)
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        
-        # 1. Estrai il testo come descrizione
-        descrizione = page.get_text().strip()
-        
-        # 2. Estrai le immagini dalla pagina
-        image_list = page.get_images(full=True)
-        for img_info in image_list:
-            xref = img_info[0]
-            base_image = doc.extract_image(xref)
-            image_bytes = base_image["image"]
-            
-            # Converti in PIL Image
-            img = Image.open(io.BytesIO(image_bytes))
-            img_hash = imagehash.phash(img)
-            
-            # Salva nel database (usa l'xref come ID univoco)
-            db_data[xref] = {
-                "hash": img_hash,
-                "descrizione": descrizione,
-                "image": img
-            }
-    doc.close()
-    return db_data
+    # 1. Carica dal PDF se esiste
+    if os.path.exists(PDF_FILE):
+        doc = fitz.open(PDF_FILE)
+        for page in doc:
+            img_list = page.get_images(full=True)
+            for img_info in img_list:
+                xref = img_info[0]
+                base_image = doc.extract_image(xref)
+                img = Image.open(io.BytesIO(base_image["image"]))
+                data.append({"hash": imagehash.phash(img), "img": img, "text": page.get_text()[:100]})
+        doc.close()
+    
+    # 2. Carica dalla cartella database_foto se esiste
+    if os.path.exists(DB_FOLDER):
+        for filename in os.listdir(DB_FOLDER):
+            if filename.lower().endswith(('.jpg', '.png', '.jpeg')):
+                img = Image.open(os.path.join(DB_FOLDER, filename))
+                data.append({"hash": imagehash.phash(img), "img": img, "text": filename})
+                
+    return data
 
-# Caricamento PDF
-db_data = load_pdf_data(PDF_FILE)
+# Esecuzione
+catalog_data = get_data()
 
-if not db_data:
-    st.error("File PDF non trovato. Caricalo nella cartella principale del repository.")
+if not catalog_data:
+    st.error(f"Nessun dato trovato! Assicurati che '{PDF_FILE}' o la cartella '{DB_FOLDER}' esistano.")
 else:
-    uploaded_file = st.file_uploader("Carica foto dallo smartphone...", type=['jpg', 'jpeg'])
-
+    uploaded_file = st.file_uploader("Carica foto...", type=['jpg', 'jpeg', 'png'])
     if uploaded_file:
-        user_img = Image.open(uploaded_file)
-        user_hash = imagehash.phash(user_img)
-        
+        user_hash = imagehash.phash(Image.open(uploaded_file))
         found = False
-        THRESHOLD = 5
-        
-        for key, data in db_data.items():
-            if (user_hash - data['hash']) < THRESHOLD:
-                st.success("### Corrispondenza trovata!")
-                st.image(data['image'], caption="Immagine dal PDF")
-                st.write(f"**Descrizione estratta:** {data['descrizione'][:200]}...") # Prime 200 lettere
+        for item in catalog_data:
+            if (user_hash - item['hash']) < 8:
+                st.success("✅ Trovato!")
+                st.image(item['img'])
+                st.write(f"Info: {item['text']}")
                 found = True
                 break
-        
         if not found:
-            st.warning("Nessuna corrispondenza nel PDF.")
+            st.warning("Nessuna corrispondenza.")
+            
