@@ -2,3 +2,4 @@ streamlit
 imagehash
 Pillow
 numpy
+pymupdf
