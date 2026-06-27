@@ -59,7 +59,7 @@ else:
         found = False
         
         for item in catalog_data:
-            if (user_hash - item['hash']) < 8:
+            if (user_hash - item['hash']) < 20:
                 st.success("✅ Trovata corrispondenza in test.pdf!")
                 st.image(item['img'])
                 st.write(f"**Dettaglio:** {item['text']}")
