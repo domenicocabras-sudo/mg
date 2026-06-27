@@ -14,7 +14,8 @@ DB_PATH = os.path.join(BASE_DIR, DB_FOLDER)
 st.set_page_config(page_title="Catalogo Scanner", layout="wide")
 st.title("Catalogo Scanner 🔍")
 
-@st.cache_data
+#@st.cache_data
+@st.cache_data(ttl=1)
 def get_data():
     data = []
     if not os.path.exists(DB_PATH):
