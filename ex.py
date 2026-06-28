@@ -4,7 +4,7 @@ import io
 from datetime import datetime
 
 st.set_page_config(layout="wide")
-st.title("📸 Inventario Rapido: Foto e Dati")
+st.title("📸 Inventario")
 
 # Sezione di input dati su una singola riga
 with st.container():
