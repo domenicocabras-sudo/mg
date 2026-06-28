@@ -3,7 +3,7 @@ import pandas as pd
 import io
 from datetime import datetime
 
-st.title("📸 Inventario Rapido: Foto e Dati")
+st.title("📸 Inventario ")
 
 # Sezione di input dati
 with st.container():
