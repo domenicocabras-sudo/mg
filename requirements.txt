@@ -5,3 +5,4 @@ numpy
 pymupdf
 frontend
 opencv-python-headless
+xlsxwriter
