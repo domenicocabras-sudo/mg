@@ -3,20 +3,18 @@ import pandas as pd
 import io
 from datetime import datetime
 
+st.set_page_config(layout="wide") # Impostazione wide per usare tutta la larghezza
 st.title("📸 Inventario Rapido: Foto e Dati")
 
-# Sezione di input dati
+# Sezione di input dati ottimizzata
 with st.container():
-    col1, col2, col3, col4 = st.columns(4)
-
+    # Usiamo una griglia 2x2 per avere più spazio per i campi
+    col1, col2 = st.columns(2)
     with col1:
-        codice_articolo = st.text_input("Codice Articolo:")
-    with col2:
         nome_cliente = st.text_input("Nome Cliente:")
-    
-    with col3:
+        codice_articolo = st.text_area("Codice Articolo:", height=68, help="Puoi andare a capo premendo Invio")
+    with col2:
         num_pezzi = st.number_input("Numero Pezzi:", min_value=0, step=1)
-    with col4:
         livello = st.selectbox("Livello:", ["A", "B", "C", "D"])
 
 # Sezione Fotocamera
@@ -32,12 +30,12 @@ if img_file_buffer and nome_cliente:
         nuova_riga = {
             "Data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Cliente": nome_cliente,
-            "Codice_Articolo": codice_articolo,
+            "Codice_Articolo": codice_articolo.replace('\n', ' '), # Pulisce per Excel
             "Numero_Pezzi": num_pezzi,
             "Livello": livello
         }
         st.session_state.inventario.append(nuova_riga)
-        st.success(f"Dati salvati per {nome_cliente} - Articolo {codice_articolo}.")
+        st.success(f"Dati salvati per {nome_cliente}.")
 
 # Visualizzazione tabella e download
 if st.session_state.inventario:
@@ -45,7 +43,6 @@ if st.session_state.inventario:
     df = pd.DataFrame(st.session_state.inventario)
     st.table(df)
     
-    # Preparazione file Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Inventario')
