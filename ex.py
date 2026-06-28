@@ -3,16 +3,16 @@ import pandas as pd
 import io
 from datetime import datetime
 
-st.set_page_config(layout="wide") # Impostazione wide per usare tutta la larghezza
+st.set_page_config(layout="wide")
 st.title("📸 Inventario Rapido: Foto e Dati")
 
-# Sezione di input dati ottimizzata
+# Sezione di input dati con Codice Articolo al primo posto
 with st.container():
-    # Usiamo una griglia 2x2 per avere più spazio per i campi
     col1, col2 = st.columns(2)
     with col1:
-        nome_cliente = st.text_input("Nome Cliente:")
+        # Il Codice Articolo è ora il primo campo
         codice_articolo = st.text_area("Codice Articolo:", height=68, help="Puoi andare a capo premendo Invio")
+        nome_cliente = st.text_input("Nome Cliente:")
     with col2:
         num_pezzi = st.number_input("Numero Pezzi:", min_value=0, step=1)
         livello = st.selectbox("Livello:", ["A", "B", "C", "D"])
@@ -29,13 +29,13 @@ if img_file_buffer and nome_cliente:
     if st.button("Conferma e Salva in Lista"):
         nuova_riga = {
             "Data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Codice_Articolo": codice_articolo.replace('\n', ' '), 
             "Cliente": nome_cliente,
-            "Codice_Articolo": codice_articolo.replace('\n', ' '), # Pulisce per Excel
             "Numero_Pezzi": num_pezzi,
             "Livello": livello
         }
         st.session_state.inventario.append(nuova_riga)
-        st.success(f"Dati salvati per {nome_cliente}.")
+        st.success(f"Dati salvati: Articolo {codice_articolo[:15]}...")
 
 # Visualizzazione tabella e download
 if st.session_state.inventario:
