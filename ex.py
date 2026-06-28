@@ -3,16 +3,20 @@ import pandas as pd
 import io
 from datetime import datetime
 
-st.title("📸 Inventario ")
+st.title("📸 Inventario Rapido: Foto e Dati")
 
 # Sezione di input dati
 with st.container():
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        nome_cliente = st.text_input("Nome Cliente:")
+        codice_articolo = st.text_input("Codice Articolo:")
     with col2:
-        num_pezzi = st.number_input("Numero Pezzi:", min_value=0, step=1)
+        nome_cliente = st.text_input("Nome Cliente:")
+    
     with col3:
+        num_pezzi = st.number_input("Numero Pezzi:", min_value=0, step=1)
+    with col4:
         livello = st.selectbox("Livello:", ["A", "B", "C", "D"])
 
 # Sezione Fotocamera
@@ -28,11 +32,12 @@ if img_file_buffer and nome_cliente:
         nuova_riga = {
             "Data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Cliente": nome_cliente,
+            "Codice_Articolo": codice_articolo,
             "Numero_Pezzi": num_pezzi,
             "Livello": livello
         }
         st.session_state.inventario.append(nuova_riga)
-        st.success(f"Dati salvati per {nome_cliente} (Livello {livello}): {num_pezzi} pezzi.")
+        st.success(f"Dati salvati per {nome_cliente} - Articolo {codice_articolo}.")
 
 # Visualizzazione tabella e download
 if st.session_state.inventario:
@@ -48,6 +53,6 @@ if st.session_state.inventario:
     st.download_button(
         label="📥 Scarica Excel Completo",
         data=output.getvalue(),
-        file_name="inventario_clienti.xlsx",
+        file_name="inventario_completo.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
