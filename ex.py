@@ -18,7 +18,7 @@ with st.sidebar:
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     for i, file_data in enumerate(st.session_state.file_list):
-        st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
+        st.download_button(f"Scarica Report articolo {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
 st.title("Inventario")
 
@@ -44,7 +44,7 @@ for i in range(1, 5):
             totale_cassa += q
 
 st.metric("Totale Pezzi in questa Cassa", totale_cassa)
-uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
+uploaded_file = st.file_uploader("Trascina foto articolo", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
 
 # Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
