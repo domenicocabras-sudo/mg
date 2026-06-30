@@ -6,23 +6,24 @@ import xlsxwriter
 
 st.set_page_config(layout="wide")
 
-# Inizializzazione stato per il reset e archivio
-if 'reset_key' not in st.session_state:
-    st.session_state.reset_key = 0
-if 'file_list' not in st.session_state:
-    st.session_state.file_list = []
-if 'inventario_data' not in st.session_state:
-    st.session_state.inventario_data = []
+# Inizializzazione stato
+if 'reset_key' not in st.session_state: st.session_state.reset_key = 0
+if 'file_list' not in st.session_state: st.session_state.file_list = []
+if 'archivio_dati' not in st.session_state: st.session_state.archivio_dati = []
+if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
-# Barra laterale per i download (sempre visibile)
+# Sidebar: Archivio e Totale Globale
 with st.sidebar:
-    st.header("📥 Archivio File")
+    st.header("📊 Archivio e Totali")
+    st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
+    st.divider()
+    # Mostriamo solo l'ultimo file generato per semplicità, o puoi scorrere la lista
     for i, file_data in enumerate(st.session_state.file_list):
         st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title("📦 Inventario Rapido: Reset Automatico")
+st.title("📦 Inventario Rapido: Report e Anteprima")
 
-# 1. Input Dati con chiavi dinamiche (per il reset)
+# 1. Input Dati
 with st.container():
     col_a, col_b, col_c = st.columns([1, 2, 2])
     with col_a:
@@ -34,58 +35,47 @@ with st.container():
 
 cols = st.columns(4)
 input_data = []
-totale_calcolato = 0
+totale_cassa = 0
 
 for i in range(1, 5):
     with cols[i-1]:
         q = st.number_input(f"Quantità (Livello {i}):", min_value=0, key=f"q_{i}_{st.session_state.reset_key}")
         if q > 0:
             input_data.append({"Livello": f"Livello {i}", "Pezzi": q})
-            totale_calcolato += q
+            totale_cassa += q
 
-st.metric("Totale Pezzi Inseriti", totale_calcolato)
+st.metric("Totale Pezzi in questa Cassa", totale_cassa)
+uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
 
-# 2. Caricamento Foto
-uploaded_file = st.file_uploader("Trascina qui la foto della cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
-
-# 3. Salvataggio e Reset
+# 2. Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
-    # Creazione Excel Professionale
-    output = io.BytesIO()
-    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-    worksheet = workbook.add_worksheet("Inventario")
+    # Aggiorna totale globale
+    st.session_state.totale_globale += totale_cassa
     
-    # Formati grafici
-    header_format = workbook.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
-    cell_format = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-    
-    # Intestazioni e larghezza
-    headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
-    for i, h in enumerate(headers): worksheet.write(0, i, h, header_format)
-    worksheet.set_column(0, 7, 15)
-    
-    # Inserimento dati
-    img_data = io.BytesIO(uploaded_file.getvalue())
-    worksheet.insert_image(1, 0, "foto.jpg", {'image_data': img_data, 'x_scale': 0.08, 'y_scale': 0.08})
-    worksheet.set_row(1, 60)
-    
-    row = 1
+    # Salva dati per la preview
     for det in input_data:
-        worksheet.write(row, 1, num_cassa, cell_format)
-        worksheet.write(row, 2, datetime.now().strftime("%d/%m/%Y %H:%M"), cell_format)
-        worksheet.write(row, 3, codice_articolo, cell_format)
-        worksheet.write(row, 4, nome_cliente, cell_format)
-        worksheet.write(row, 5, det["Livello"], cell_format)
-        worksheet.write(row, 6, det["Pezzi"], cell_format)
-        worksheet.write(row, 7, totale_calcolato, cell_format)
-        row += 1
-            
-    workbook.close()
+        st.session_state.archivio_dati.append({
+            "Cassa": num_cassa, "Codice": codice_articolo, "Livello": det["Livello"], "Pezzi": det["Pezzi"]
+        })
     
-    # Aggiunta all'archivio della sidebar
+    # Crea Excel
+    output = io.BytesIO()
+    with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
+        ws = wb.add_worksheet("Inventario")
+        ws.write(0, 0, "Cassa"); ws.write(0, 1, num_cassa)
+        ws.write(1, 0, "Totale Pezzi"); ws.write(1, 1, totale_cassa)
+    
     st.session_state.file_list.append(output.getvalue())
-    st.success("Dati salvati!")
     
-    # Incremento chiave per azzerare i campi
+    # Reset e Ricarica
     st.session_state.reset_key += 1
     st.rerun()
+
+# 3. Anteprima in fondo alla pagina (sempre visibile se ci sono dati)
+st.write("---")
+st.subheader("📋 Anteprima Report (Dati raccolti finora)")
+if st.session_state.archivio_dati:
+    df_preview = pd.DataFrame(st.session_state.archivio_dati)
+    st.dataframe(df_preview, use_container_width=True)
+else:
+    st.info("Nessun dato inserito ancora.")
