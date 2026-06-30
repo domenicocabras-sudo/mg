@@ -12,16 +12,15 @@ if 'file_list' not in st.session_state: st.session_state.file_list = []
 if 'archivio_dati' not in st.session_state: st.session_state.archivio_dati = []
 if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
-# Sidebar: Archivio e Totale Globale
+# Sidebar: Archivio
 with st.sidebar:
     st.header("📊 Archivio e Totali")
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
-    # Mostriamo solo l'ultimo file generato per semplicità, o puoi scorrere la lista
     for i, file_data in enumerate(st.session_state.file_list):
         st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title("📦 Inventario Rapido: Report e Anteprima")
+st.title("📦 Inventario Rapido: Report Professionale")
 
 # 1. Input Dati
 with st.container():
@@ -49,33 +48,43 @@ uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpe
 
 # 2. Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
-    # Aggiorna totale globale
     st.session_state.totale_globale += totale_cassa
     
-    # Salva dati per la preview
+    # Dati per preview
     for det in input_data:
-        st.session_state.archivio_dati.append({
-            "Cassa": num_cassa, "Codice": codice_articolo, "Livello": det["Livello"], "Pezzi": det["Pezzi"]
-        })
+        st.session_state.archivio_dati.append({"Cassa": num_cassa, "Codice": codice_articolo, "Livello": det["Livello"], "Pezzi": det["Pezzi"]})
     
-    # Crea Excel
+    # Crea Excel con Merge Celle
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
         ws = wb.add_worksheet("Inventario")
-        ws.write(0, 0, "Cassa"); ws.write(0, 1, num_cassa)
-        ws.write(1, 0, "Totale Pezzi"); ws.write(1, 1, totale_cassa)
-    
+        fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+        hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
+        
+        headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
+        for i, h in enumerate(headers): ws.write(0, i, h, hdr)
+        
+        num_rows = len(input_data)
+        # Unisce celle per Foto, Cassa, Data, Codice, Cliente, Totale
+        ws.merge_range(1, 0, num_rows, 0, '', fmt)
+        ws.insert_image(1, 0, "foto.jpg", {'image_data': io.BytesIO(uploaded_file.getvalue()), 'x_scale': 0.08, 'y_scale': 0.08})
+        
+        cols_merge = [1, 2, 3, 4, 7]
+        vals = [num_cassa, datetime.now().strftime("%d/%m/%Y %H:%M"), codice_articolo, nome_cliente, totale_cassa]
+        for idx, col in enumerate(cols_merge):
+            ws.merge_range(1, col, num_rows, col, vals[idx], fmt)
+            
+        for i, det in enumerate(input_data):
+            ws.write(1 + i, 5, det["Livello"], fmt)
+            ws.write(1 + i, 6, det["Pezzi"], fmt)
+            ws.set_row(1 + i, 60)
+            
     st.session_state.file_list.append(output.getvalue())
-    
-    # Reset e Ricarica
     st.session_state.reset_key += 1
     st.rerun()
 
-# 3. Anteprima in fondo alla pagina (sempre visibile se ci sono dati)
+# 3. Preview in fondo
 st.write("---")
-st.subheader("📋 Anteprima Report (Dati raccolti finora)")
+st.subheader("📋 Anteprima Dati")
 if st.session_state.archivio_dati:
-    df_preview = pd.DataFrame(st.session_state.archivio_dati)
-    st.dataframe(df_preview, use_container_width=True)
-else:
-    st.info("Nessun dato inserito ancora.")
+    st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)
