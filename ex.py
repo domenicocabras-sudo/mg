@@ -44,7 +44,7 @@ for i in range(1, 5):
             totale_cassa += q
 
 st.metric("Totale Pezzi in questa Cassa", totale_cassa)
-uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
+uploaded_file = st.file_uploader("Trascina Foto Articolo", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
 
 # Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
