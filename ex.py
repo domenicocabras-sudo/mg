@@ -14,11 +14,11 @@ if 'file_list' not in st.session_state:
 
 # Barra laterale per i download
 with st.sidebar:
-    st.header("📥 Archivio File")
+    st.header(" Archivio File")
     for i, file_data in enumerate(st.session_state.file_list):
         st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title("📦 Inventario Rapido: Reset Automatico")
+st.title(" Inventario ")
 
 # Usiamo la chiave 'reset_key' per forzare il refresh dei campi
 with st.container():
