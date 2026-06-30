@@ -14,13 +14,13 @@ if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
 # Sidebar
 with st.sidebar:
-    st.header("Archivio e Totali")
+    st.header("📊 Archivio e Totali")
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     for i, file_data in enumerate(st.session_state.file_list):
-        st.download_button(f"Scarica Report articolo {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
+        st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title("Inventario")
+st.title("📦 Inventario Rapido: Report Professionale")
 
 # Input Dati
 with st.container():
@@ -44,7 +44,7 @@ for i in range(1, 5):
             totale_cassa += q
 
 st.metric("Totale Pezzi in questa Cassa", totale_cassa)
-uploaded_file = st.file_uploader("Trascina foto articolo", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
+uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
 
 # Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
@@ -58,7 +58,7 @@ if uploaded_file and st.button("Conferma e Salva"):
         fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
-        # Larghezze personalizzate per distanziare bene
+        # Larghezze colonne per spazio arioso
         col_widths = [18, 12, 20, 15, 20, 15, 12, 15]
         for i, width in enumerate(col_widths): ws.set_column(i, i, width)
         
@@ -66,8 +66,15 @@ if uploaded_file and st.button("Conferma e Salva"):
         for i, h in enumerate(headers): ws.write(0, i, h, hdr)
         
         num_rows = len(input_data)
+        # Unione celle blocco
         ws.merge_range(1, 0, num_rows, 0, '', fmt)
-        ws.insert_image(1, 0, "foto.jpg", {'image_data': io.BytesIO(uploaded_file.getvalue()), 'x_scale': 0.08, 'y_scale': 0.08})
+        
+        # Inserimento e centratura foto
+        ws.insert_image(1, 0, "foto.jpg", {
+            'image_data': io.BytesIO(uploaded_file.getvalue()), 
+            'x_scale': 0.08, 'y_scale': 0.08,
+            'x_offset': 25, 'y_offset': 10 
+        })
         
         cols_merge = [1, 2, 3, 4, 7]
         vals = [num_cassa, datetime.now().strftime("%d/%m/%Y %H:%M"), codice_articolo, nome_cliente, totale_cassa]
@@ -87,4 +94,4 @@ if uploaded_file and st.button("Conferma e Salva"):
 st.write("---")
 st.subheader("📋 Anteprima Dati")
 if st.session_state.archivio_dati:
-    st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)
+    st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)_container_width=True)
