@@ -19,17 +19,15 @@ with st.container():
 
 st.write("---")
 
-# 2. Input 4 coppie Pezzi/Livello
+# 2. Input 4 campi quantità (Livello 1 - 4)
 cols = st.columns(4)
 input_data = []
 
-for i in range(4):
-    with cols[i]:
-        st.subheader(f"Pezzo {i+1}")
-        p = st.number_input(f"Quantità {i+1}:", min_value=0, key=f"p_{i}")
-        l = st.selectbox(f"Livello {i+1}:", ["A", "B", "C", "D"], key=f"l_{i}")
-        if p > 0:
-            input_data.append({"Pezzi": p, "Livello": l})
+for i in range(1, 5):
+    with cols[i-1]:
+        q = st.number_input(f"Quantità {i} (Livello {i}):", min_value=0, key=f"q_{i}")
+        if q > 0:
+            input_data.append({"Livello": f"Livello {i}", "Pezzi": q})
 
 # 3. Caricamento Foto
 uploaded_file = st.file_uploader("Trascina qui la foto della cassa", type=['jpg', 'png', 'jpeg'])
@@ -46,8 +44,8 @@ if uploaded_file and st.button("Conferma e Salva in Lista"):
             "Data": datetime.now().strftime("%H:%M:%S"),
             "Codice": codice_articolo,
             "Cliente": nome_cliente,
-            "Pezzi": entry["Pezzi"],
             "Livello": entry["Livello"],
+            "Pezzi": entry["Pezzi"],
             "Foto": img_bytes
         })
     st.success("Dati salvati!")
@@ -56,13 +54,13 @@ if uploaded_file and st.button("Conferma e Salva in Lista"):
 if st.session_state.inventario:
     df = pd.DataFrame(st.session_state.inventario)
     st.write("### Riepilogo")
-    st.table(df.drop(columns=['Foto'])) # Mostra tabella senza i byte della foto
+    st.table(df.drop(columns=['Foto']))
 
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     worksheet = workbook.add_worksheet("Inventario")
     
-    headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Pezzi", "Livello"]
+    headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi"]
     for i, h in enumerate(headers): worksheet.write(0, i, h)
     
     for row_num, item in enumerate(st.session_state.inventario, start=1):
@@ -73,8 +71,8 @@ if st.session_state.inventario:
         worksheet.write(row_num, 2, item["Data"])
         worksheet.write(row_num, 3, item["Codice"])
         worksheet.write(row_num, 4, item["Cliente"])
-        worksheet.write(row_num, 5, item["Pezzi"])
-        worksheet.write(row_num, 6, item["Livello"])
+        worksheet.write(row_num, 5, item["Livello"])
+        worksheet.write(row_num, 6, item["Pezzi"])
     
     workbook.close()
     st.download_button("📥 Scarica Excel", output.getvalue(), "inventario.xlsx")
