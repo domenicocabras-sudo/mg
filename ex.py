@@ -94,4 +94,5 @@ if uploaded_file and st.button("Conferma e Salva"):
 st.write("---")
 st.subheader("📋 Anteprima Dati")
 if st.session_state.archivio_dati:
-    st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)_container_width=True)
+    # Sostituisci la vecchia riga 97 con questa riga pulita:
+st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)
