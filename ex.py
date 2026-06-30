@@ -12,17 +12,17 @@ if 'file_list' not in st.session_state: st.session_state.file_list = []
 if 'archivio_dati' not in st.session_state: st.session_state.archivio_dati = []
 if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
-# Sidebar: Archivio
+# Sidebar
 with st.sidebar:
-    st.header("📊 Totale")
+    st.header("📊 Archivio e Totali")
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     for i, file_data in enumerate(st.session_state.file_list):
         st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title(" Inventario ")
+st.title("📦 Inventario Rapido: Report Professionale")
 
-# 1. Input Dati
+# Input Dati
 with st.container():
     col_a, col_b, col_c = st.columns([1, 2, 2])
     with col_a:
@@ -46,26 +46,26 @@ for i in range(1, 5):
 st.metric("Totale Pezzi in questa Cassa", totale_cassa)
 uploaded_file = st.file_uploader("Trascina foto cassa", type=['jpg', 'png', 'jpeg'], key=f"up_{st.session_state.reset_key}")
 
-# 2. Salvataggio
+# Salvataggio
 if uploaded_file and st.button("Conferma e Salva"):
     st.session_state.totale_globale += totale_cassa
-    
-    # Dati per preview
     for det in input_data:
         st.session_state.archivio_dati.append({"Cassa": num_cassa, "Codice": codice_articolo, "Livello": det["Livello"], "Pezzi": det["Pezzi"]})
     
-    # Crea Excel con Merge Celle
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
         ws = wb.add_worksheet("Inventario")
         fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
+        # Larghezze personalizzate per distanziare bene
+        col_widths = [18, 12, 20, 15, 20, 15, 12, 15]
+        for i, width in enumerate(col_widths): ws.set_column(i, i, width)
+        
         headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
         for i, h in enumerate(headers): ws.write(0, i, h, hdr)
         
         num_rows = len(input_data)
-        # Unisce celle per Foto, Cassa, Data, Codice, Cliente, Totale
         ws.merge_range(1, 0, num_rows, 0, '', fmt)
         ws.insert_image(1, 0, "foto.jpg", {'image_data': io.BytesIO(uploaded_file.getvalue()), 'x_scale': 0.08, 'y_scale': 0.08})
         
@@ -83,7 +83,7 @@ if uploaded_file and st.button("Conferma e Salva"):
     st.session_state.reset_key += 1
     st.rerun()
 
-# 3. Preview in fondo
+# Preview
 st.write("---")
 st.subheader("📋 Anteprima Dati")
 if st.session_state.archivio_dati:
