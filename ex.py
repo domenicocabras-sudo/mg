@@ -14,13 +14,13 @@ if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
 # Sidebar: Archivio
 with st.sidebar:
-    st.header("📊 Archivio e Totali")
+    st.header("📊 Totale")
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     for i, file_data in enumerate(st.session_state.file_list):
         st.download_button(f"Scarica Report Cassa {i+1}", file_data, f"Report_Cassa_{i+1}.xlsx")
 
-st.title("📦 Inventario Rapido: Report Professionale")
+st.title(" Inventario ")
 
 # 1. Input Dati
 with st.container():
