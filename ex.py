@@ -5,24 +5,34 @@ from datetime import datetime
 import xlsxwriter
 
 st.set_page_config(layout="wide")
-st.title("📦 Inventario Rapido: Foto e Dati")
+st.title("📦 Inventario Rapido: Multi-Input")
 
-# 1. Input Dati
+# 1. Dati Generali
 with st.container():
-    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 1, 1])
-    with col1:
+    col_a, col_b, col_c = st.columns([1, 2, 2])
+    with col_a:
         num_cassa = st.text_input("Numero Cassa:")
-    with col2:
+    with col_b:
         codice_articolo = st.text_input("Codice Articolo:")
-    with col3:
+    with col_c:
         nome_cliente = st.text_input("Nome Cliente:")
-    with col4:
-        num_pezzi = st.number_input("Pezzi:", min_value=0, step=1)
-    with col5:
-        livello = st.selectbox("Livello:", ["A", "B", "C", "D"])
 
-# 2. Caricamento Foto (Supporta Drag & Drop)
-uploaded_file = st.file_uploader("Trascina o carica la foto della cassa", type=['jpg', 'png', 'jpeg'])
+st.write("---")
+
+# 2. Input 4 coppie Pezzi/Livello
+cols = st.columns(4)
+input_data = []
+
+for i in range(4):
+    with cols[i]:
+        st.subheader(f"Pezzo {i+1}")
+        p = st.number_input(f"Quantità {i+1}:", min_value=0, key=f"p_{i}")
+        l = st.selectbox(f"Livello {i+1}:", ["A", "B", "C", "D"], key=f"l_{i}")
+        if p > 0:
+            input_data.append({"Pezzi": p, "Livello": l})
+
+# 3. Caricamento Foto
+uploaded_file = st.file_uploader("Trascina qui la foto della cassa", type=['jpg', 'png', 'jpeg'])
 
 if 'inventario' not in st.session_state:
     st.session_state.inventario = []
@@ -30,26 +40,24 @@ if 'inventario' not in st.session_state:
 # Salvataggio
 if uploaded_file and st.button("Conferma e Salva in Lista"):
     img_bytes = uploaded_file.getvalue()
-    st.session_state.inventario.append({
-        "Cassa": num_cassa,
-        "Data": datetime.now().strftime("%H:%M:%S"),
-        "Codice": codice_articolo,
-        "Cliente": nome_cliente,
-        "Pezzi": num_pezzi,
-        "Livello": livello,
-        "Foto": img_bytes
-    })
+    for entry in input_data:
+        st.session_state.inventario.append({
+            "Cassa": num_cassa,
+            "Data": datetime.now().strftime("%H:%M:%S"),
+            "Codice": codice_articolo,
+            "Cliente": nome_cliente,
+            "Pezzi": entry["Pezzi"],
+            "Livello": entry["Livello"],
+            "Foto": img_bytes
+        })
     st.success("Dati salvati!")
 
+# 4. Tabella e Download
 if st.session_state.inventario:
     df = pd.DataFrame(st.session_state.inventario)
-    
-    # 3. Calcolo Automatico Totali
-    st.write("### 📊 Riepilogo Totali per Cassa e Livello")
-    totali = df.groupby(['Cassa', 'Livello'])['Pezzi'].sum().reset_index()
-    st.table(totali)
+    st.write("### Riepilogo")
+    st.table(df.drop(columns=['Foto'])) # Mostra tabella senza i byte della foto
 
-    # 4. Creazione Excel
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     worksheet = workbook.add_worksheet("Inventario")
@@ -69,4 +77,4 @@ if st.session_state.inventario:
         worksheet.write(row_num, 6, item["Livello"])
     
     workbook.close()
-    st.download_button("📥 Scarica Excel Completo", output.getvalue(), "inventario.xlsx", "application/vnd.ms-excel")
+    st.download_button("📥 Scarica Excel", output.getvalue(), "inventario.xlsx")
