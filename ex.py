@@ -58,12 +58,14 @@ if uploaded_file and st.button("Conferma e Salva"):
         fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
-        # Larghezze colonne per spazio arioso
+        # Larghezze colonne
         col_widths = [18, 12, 20, 15, 20, 15, 12, 15]
-        for i, width in enumerate(col_widths): ws.set_column(i, i, width)
+        for i, width in enumerate(col_widths): 
+            ws.set_column(i, i, width)
         
         headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
-        for i, h in enumerate(headers): ws.write(0, i, h, hdr)
+        for i, h in enumerate(headers): 
+            ws.write(0, i, h, hdr)
         
         num_rows = len(input_data)
         # Unione celle blocco
@@ -90,9 +92,10 @@ if uploaded_file and st.button("Conferma e Salva"):
     st.session_state.reset_key += 1
     st.rerun()
 
-# Preview
+# Preview finale
 st.write("---")
 st.subheader("📋 Anteprima Dati")
 if st.session_state.archivio_dati:
-    # Sostituisci la vecchia riga 97 con questa riga pulita:
-st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)
+    st.dataframe(pd.DataFrame(st.session_state.archivio_dati), use_container_width=True)
+else:
+    st.info("Nessun dato inserito ancora.")
