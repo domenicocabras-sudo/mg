@@ -14,7 +14,7 @@ if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
 
 # Sidebar
 with st.sidebar:
-    st.header("📊 Archivio e Totali")
+    st.header("Archivio e Totali")
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     for i, file_data in enumerate(st.session_state.file_list):
