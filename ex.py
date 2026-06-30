@@ -5,9 +5,9 @@ from datetime import datetime
 import xlsxwriter
 
 st.set_page_config(layout="wide")
-st.title("📦 Inventario Rapido: Multi-Input")
+st.title("📦 Inventario Rapido con Totali")
 
-# 1. Dati Generali
+# 1. Input Dati
 with st.container():
     col_a, col_b, col_c = st.columns([1, 2, 2])
     with col_a:
@@ -19,18 +19,21 @@ with st.container():
 
 st.write("---")
 
-# 2. Input 4 campi quantità (Livello 1 - 4)
 cols = st.columns(4)
 input_data = []
+totale_calcolato = 0
 
 for i in range(1, 5):
     with cols[i-1]:
-        q = st.number_input(f"Quantità {i} (Livello {i}):", min_value=0, key=f"q_{i}")
+        q = st.number_input(f"Quantità (Livello {i}):", min_value=0, key=f"q_{i}")
         if q > 0:
             input_data.append({"Livello": f"Livello {i}", "Pezzi": q})
+            totale_calcolato += q
 
-# 3. Caricamento Foto
-uploaded_file = st.file_uploader("Trascina qui la foto della cassa", type=['jpg', 'png', 'jpeg'])
+st.metric("Totale Pezzi Inseriti", totale_calcolato)
+
+# 2. Caricamento Foto
+uploaded_file = st.file_uploader("Trascina o carica foto cassa", type=['jpg', 'png', 'jpeg'])
 
 if 'inventario' not in st.session_state:
     st.session_state.inventario = []
@@ -41,38 +44,37 @@ if uploaded_file and st.button("Conferma e Salva in Lista"):
     for entry in input_data:
         st.session_state.inventario.append({
             "Cassa": num_cassa,
-            "Data": datetime.now().strftime("%H:%M:%S"),
+            "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
             "Codice": codice_articolo,
             "Cliente": nome_cliente,
             "Livello": entry["Livello"],
             "Pezzi": entry["Pezzi"],
+            "Totale_Pezzi": totale_calcolato,
             "Foto": img_bytes
         })
     st.success("Dati salvati!")
 
-# 4. Tabella e Download
+# 3. Download Excel "Graficamente Bello"
 if st.session_state.inventario:
-    df = pd.DataFrame(st.session_state.inventario)
-    st.write("### Riepilogo")
-    st.table(df.drop(columns=['Foto']))
-
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {'in_memory': True})
     worksheet = workbook.add_worksheet("Inventario")
     
-    headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi"]
-    for i, h in enumerate(headers): worksheet.write(0, i, h)
+    # Formati grafici
+    header_format = workbook.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
+    cell_format = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+    
+    headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
+    for i, h in enumerate(headers): worksheet.write(0, i, h, header_format)
     
     for row_num, item in enumerate(st.session_state.inventario, start=1):
         img_data = io.BytesIO(item["Foto"])
-        worksheet.insert_image(row_num, 0, "foto.jpg", {'image_data': img_data, 'x_scale': 0.1, 'y_scale': 0.1})
+        worksheet.insert_image(row_num, 0, "foto.jpg", {'image_data': img_data, 'x_scale': 0.08, 'y_scale': 0.08})
         worksheet.set_row(row_num, 60)
-        worksheet.write(row_num, 1, item["Cassa"])
-        worksheet.write(row_num, 2, item["Data"])
-        worksheet.write(row_num, 3, item["Codice"])
-        worksheet.write(row_num, 4, item["Cliente"])
-        worksheet.write(row_num, 5, item["Livello"])
-        worksheet.write(row_num, 6, item["Pezzi"])
-    
+        
+        data = [item["Cassa"], item["Data"], item["Codice"], item["Cliente"], item["Livello"], item["Pezzi"], item["Totale_Pezzi"]]
+        for col_idx, val in enumerate(data):
+            worksheet.write(row_num, col_idx + 1, val, cell_format)
+            
     workbook.close()
-    st.download_button("📥 Scarica Excel", output.getvalue(), "inventario.xlsx")
+    st.download_button("📥 Scarica Report Excel Professionale", output.getvalue(), "Report_Inventario.xlsx")
