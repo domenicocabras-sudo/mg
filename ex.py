@@ -8,64 +8,47 @@ st.set_page_config(layout="wide")
 
 # Inizializzazione stato
 if 'archivio_dati' not in st.session_state: st.session_state.archivio_dati = []
-if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
-# Gestione Casse dinamiche
 if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
+if 'file_riepilogo' not in st.session_state: st.session_state.file_riepilogo = None
+
+# Funzione per generare l'Excel con le foto
+def genera_excel_globale():
+    output = io.BytesIO()
+    with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
+        ws = wb.add_worksheet("Riepilogo")
+        # ... (qui inseriresti la logica di formattazione che avevi già)
+        # Per semplicità, qui mettiamo i dati:
+        df = pd.DataFrame(st.session_state.archivio_dati)
+        df.to_excel(writer, index=False) # Nota: con le foto dovrai mantenere la tua logica ws.insert_image
+    return output.getvalue()
 
 st.title("Gestione Inventario Multi-Cassa")
 
-# Bottone per aggiungere una nuova cassa
+# Sidebar sempre presente per il download
+with st.sidebar:
+    st.header("📥 Download Dati")
+    if st.session_state.file_riepilogo:
+        st.download_button("Scarica Riepilogo Globale (Excel)", st.session_state.file_riepilogo, "Riepilogo_Totale.xlsx")
+    else:
+        st.info("Salva almeno una cassa per generare il file.")
+
+# Gestione Tab
 if st.button("➕ Aggiungi Nuova Cassa"):
     st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
     st.rerun()
 
-# Creazione tab dinamica
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        st.subheader(f"Inserimento Dati per {st.session_state.casse_aperte[i]}")
-        
-        # Form di input
-        c1, c2, c3 = st.columns(3)
-        num_cassa = c1.text_input(f"ID Cassa {i}", key=f"cassa_{i}")
-        codice = c2.text_input(f"Codice Articolo {i}", key=f"codice_{i}")
-        cliente = c3.text_input(f"Cliente {i}", key=f"cliente_{i}")
-        
-        cols = st.columns(4)
-        input_data = []
-        totale_cassa = 0
-        for j in range(1, 5):
-            q = cols[j-1].number_input(f"Livello {j}", min_value=0, key=f"q_{i}_{j}")
-            if q > 0:
-                input_data.append({"Livello": f"Livello {j}", "Pezzi": q})
-                totale_cassa += q
-        
+        # ... (i tuoi input text_input e number_input qui) ...
         uploaded_file = st.file_uploader(f"Foto {st.session_state.casse_aperte[i]}", type=['jpg', 'png'], key=f"up_{i}")
         
         if uploaded_file and st.button(f"Salva {st.session_state.casse_aperte[i]}", key=f"save_{i}"):
-            st.session_state.totale_globale += totale_cassa
-            # Logica salvataggio identica alla tua...
-            st.success("Dati salvati!")
-
-# --- RIEPILOGO E LINK XLS ---
-st.divider()
-st.subheader("📊 Riepilogo Globale")
-
-if st.session_state.archivio_dati:
-    df_totale = pd.DataFrame(st.session_state.archivio_dati)
-    
-    # Generazione file Excel unico di riepilogo
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df_totale.to_excel(writer, index=False, sheet_name='Riepilogo')
-    
-    st.download_button(
-        label="📥 Scarica Riepilogo Totale (Excel)",
-        data=buffer,
-        file_name="Inventario_Completo.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    st.dataframe(df_totale, use_container_width=True)
-else:
-    st.info("Nessun dato inserito.")
+            # 1. Aggiungi dati all'archivio
+            st.session_state.archivio_dati.append({...}) 
+            
+            # 2. RIGENERA IL FILE E SALVALO NELLO STATO
+            st.session_state.file_riepilogo = genera_excel_globale()
+            st.success("Dato salvato e file riepilogo aggiornato!")
+            st.rerun()
