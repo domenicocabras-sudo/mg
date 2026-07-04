@@ -21,12 +21,9 @@ def salva_su_disco():
 # --- 2. INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
 
-# Layout superiore: Titolo e Bottone Aggiungi Cassa a destra
 col_titolo, col_btn = st.columns([4, 1])
-with col_titolo:
-    st.title("Inventario Multi-Cassa")
+with col_titolo: st.title("Inventario Multi-Cassa")
 with col_btn:
-    st.write("") # Spazio per allineamento
     if st.button("➕ Aggiungi Cassa"):
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
@@ -42,11 +39,9 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
-        # Logica contatore locale
+        # CONTATORE: Somma SOLO i pezzi già salvati per questa tab (i)
         totale_archiviato = sum(item['Pezzi'] for item in st.session_state.archivio_dati if item.get('tab_index') == i)
-        totale_corrente = sum(quantita) + totale_archiviato
-        
-        st.metric(f"Totale pezzi {st.session_state.casse_aperte[i]}", totale_corrente)
+        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
         
         if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             for j, q in enumerate(quantita):
@@ -59,16 +54,14 @@ for i, tab in enumerate(tabs):
             salva_su_disco()
             st.rerun()
 
-# --- 3. SIDEBAR (ARCHIVIO E PULIZIA) ---
+# --- 3. SIDEBAR (REPORT E PULIZIA) ---
 with st.sidebar:
     st.header("Archivio e Controlli")
-    
-    if st.button("🧹 Pulisci Archivio Cassa Attiva"):
-        # Rimuove solo i dati della cassa selezionata (indice i corrente non disponibile qui, quindi pulisce tutto)
+    if st.button("🧹 Pulisci TUTTO l'archivio"):
         st.session_state.archivio_dati = []
         salva_su_disco()
         st.rerun()
-
+    
     st.divider()
     if st.session_state.archivio_dati:
         output = io.BytesIO()
