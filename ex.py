@@ -4,12 +4,13 @@ import sqlite3
 import io
 import xlsxwriter
 import os
-
 from datetime import datetime
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE E PERCORSO RADICE ---
 st.set_page_config(layout="wide")
-DB_FILE = "inventario.db"
+# Forza la creazione del DB nella cartella dove risiede questo script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
 # --- 1. GESTIONE DATABASE (SQLite) ---
 def init_db():
@@ -21,10 +22,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Inizializza il DB all'avvio
 init_db()
 
-# Funzione per leggere dal DB
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -54,7 +53,6 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
-        # Calcolo totale locale
         dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
         st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
