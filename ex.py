@@ -9,66 +9,78 @@ st.set_page_config(layout="wide")
 
 DB_FILE = "inventario_salvato.csv"
 
-# --- INIZIALIZZAZIONE E CARICAMENTO ---
+# --- INIZIALIZZAZIONE SICURA ---
 if 'archivio_dati' not in st.session_state:
+    st.session_state.archivio_dati = []
     if os.path.exists(DB_FILE):
         try:
-            # Forza la lettura come stringa per evitare errori di tipo
-            df = pd.read_csv(DB_FILE, dtype=str)
-            # Converte le colonne numeriche se necessario
-            if 'Pezzi' in df.columns:
-                df['Pezzi'] = pd.to_numeric(df['Pezzi'], errors='coerce').fillna(0).astype(int)
+            df = pd.read_csv(DB_FILE)
             st.session_state.archivio_dati = df.to_dict('records')
-        except Exception as e:
-            st.error(f"Errore nel caricamento dati: {e}")
-            st.session_state.archivio_dati = []
-    else:
-        st.session_state.archivio_dati = []
+        except Exception:
+            # Se il file è rotto, lo ignoriamo
+            pass
 
 if 'casse_aperte' not in st.session_state:
     st.session_state.casse_aperte = ["Cassa 1"]
 
 # --- FUNZIONI ---
 def salva_su_disco():
-    # Escludiamo le foto dal salvataggio su CSV
     dati_per_csv = [{k: v for k, v in item.items() if k != 'foto_bytes'} for item in st.session_state.archivio_dati]
-    df = pd.DataFrame(dati_per_csv)
-    df.to_csv(DB_FILE, index=False)
+    pd.DataFrame(dati_per_csv).to_csv(DB_FILE, index=False)
 
 def genera_excel():
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
         ws = wb.add_worksheet("Inventario")
-        fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-        hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
-        
         headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
-        for i, h in enumerate(headers):
-            ws.write(0, i, h, hdr)
+        for i, h in enumerate(headers): ws.write(0, i, h)
         
-        row_idx = 1
-        for entry in st.session_state.archivio_dati:
-            # Foto
+        for r, entry in enumerate(st.session_state.archivio_dati, 1):
             if entry.get('foto_bytes'):
                 try:
-                    # NOTA: Se la foto è stata caricata nella sessione corrente
-                    ws.insert_image(row_idx, 0, "foto.jpg", {
-                        'image_data': io.BytesIO(entry['foto_bytes']), 
-                        'x_scale': 0.1, 'y_scale': 0.1
-                    })
-                except:
-                    pass
-            
-            ws.write(row_idx, 1, str(entry.get('Cassa', '')), fmt)
-            ws.write(row_idx, 2, str(entry.get('Data', '')), fmt)
-            ws.write(row_idx, 3, str(entry.get('Codice', '')), fmt)
-            ws.write(row_idx, 4, str(entry.get('Cliente', '')), fmt)
-            ws.write(row_idx, 5, str(entry.get('Livello', '')), fmt)
-            ws.write(row_idx, 6, int(entry.get('Pezzi', 0)), fmt)
-            ws.write(row_idx, 7, str(entry.get('Totale_Cassa', '')), fmt)
-            ws.set_row(row_idx, 60)
-            row_idx += 1
+                    ws.insert_image(r, 0, "foto.jpg", {'image_data': io.BytesIO(entry['foto_bytes'])})
+                except: pass
+            ws.write(r, 1, str(entry.get('Cassa', '')))
+            ws.write(r, 2, str(entry.get('Data', '')))
+            ws.write(r, 3, str(entry.get('Codice', '')))
+            ws.write(r, 4, str(entry.get('Cliente', '')))
+            ws.write(r, 5, str(entry.get('Livello', '')))
+            ws.write(r, 6, entry.get('Pezzi', 0))
+            ws.write(r, 7, str(entry.get('Totale_Cassa', '')))
     return output.getvalue()
 
-# --- SIDEBAR E UI ---
-# (Il resto del codice rimane identico, assicurati di usare i metodi sopra)
+# --- UI ---
+st.title("Inventario")
+
+if st.button("➕ Aggiungi Cassa"):
+    st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
+    st.rerun()
+
+tabs = st.tabs(st.session_state.casse_aperte)
+for i, tab in enumerate(tabs):
+    with tab:
+        num_cassa = st.text_input("Cassa:", key=f"cassa_{i}")
+        codice = st.text_input("Codice:", key=f"codice_{i}")
+        cliente = st.text_input("Cliente:", key=f"cliente_{i}")
+        
+        cols = st.columns(4)
+        input_data = []
+        totale_cassa = 0
+        for j in range(1, 5):
+            q = cols[j-1].number_input(f"Q (L{j}):", min_value=0, key=f"q_{i}_{j}")
+            if q > 0:
+                input_data.append({"Livello": f"L{j}", "Pezzi": q})
+                totale_cassa += q
+        
+        uploaded = st.file_uploader("Foto", key=f"up_{i}")
+        if uploaded and st.button(f"Salva {i}", key=f"btn_{i}"):
+            f_bytes = uploaded.getvalue()
+            for idx, d in enumerate(input_data):
+                st.session_state.archivio_dati.append({
+                    "Cassa": num_cassa if idx==0 else "", "Data": datetime.now().strftime("%d/%m/%Y") if idx==0 else "",
+                    "Codice": codice if idx==0 else "", "Cliente": cliente if idx==0 else "",
+                    "Livello": d["Livello"], "Pezzi": d["Pezzi"], "Totale_Cassa": totale_cassa if idx==0 else "",
+                    "foto_bytes": f_bytes if idx==0 else None
+                })
+            salva_su_disco()
+            st.rerun()
