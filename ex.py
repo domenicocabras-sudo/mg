@@ -7,10 +7,9 @@ import os
 
 st.set_page_config(layout="wide")
 
-# File per il salvataggio persistente
 DB_FILE = "inventario_salvato.csv"
 
-# --- INIZIALIZZAZIONE STATO E CARICAMENTO ---
+# --- INIZIALIZZAZIONE ---
 if 'archivio_dati' not in st.session_state:
     if os.path.exists(DB_FILE):
         try:
@@ -24,7 +23,7 @@ if 'archivio_dati' not in st.session_state:
 if 'casse_aperte' not in st.session_state:
     st.session_state.casse_aperte = ["Cassa 1"]
 
-# --- FUNZIONI DI SERVIZIO ---
+# --- FUNZIONI ---
 def salva_su_disco():
     df = pd.DataFrame(st.session_state.archivio_dati)
     df.to_csv(DB_FILE, index=False)
@@ -36,38 +35,37 @@ def genera_excel():
         fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
-        ws.set_column(0, 6, 15)
-        headers = ["Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
+        headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
         for i, h in enumerate(headers):
             ws.write(0, i, h, hdr)
         
-        for row_idx, entry in enumerate(st.session_state.archivio_dati, start=1):
-            ws.write(row_idx, 0, entry.get('Cassa', ''), fmt)
-            ws.write(row_idx, 1, entry.get('Data', ''), fmt)
-            ws.write(row_idx, 2, entry.get('Codice', ''), fmt)
-            ws.write(row_idx, 3, entry.get('Cliente', ''), fmt)
-            ws.write(row_idx, 4, entry.get('Livello', ''), fmt)
-            ws.write(row_idx, 5, entry.get('Pezzi', 0), fmt)
-            ws.write(row_idx, 6, entry.get('Totale_Cassa', 0), fmt)
+        row_idx = 1
+        # Raggruppiamo i dati per cassa/codice per evitare ripetizioni
+        # Assumendo che ogni blocco aggiunto sia un gruppo unico
+        for entry in st.session_state.archivio_dati:
+            # Scriviamo i dati comuni
+            ws.write(row_idx, 0, "N/A", fmt) # Placeholder foto
+            ws.write(row_idx, 1, entry.get('Cassa', ''), fmt)
+            ws.write(row_idx, 2, entry.get('Data', ''), fmt)
+            ws.write(row_idx, 3, entry.get('Codice', ''), fmt)
+            ws.write(row_idx, 4, entry.get('Cliente', ''), fmt)
+            ws.write(row_idx, 5, entry.get('Livello', ''), fmt)
+            ws.write(row_idx, 6, entry.get('Pezzi', 0), fmt)
+            ws.write(row_idx, 7, entry.get('Totale_Cassa', 0), fmt)
+            row_idx += 1
+            
     return output.getvalue()
 
-# --- SIDEBAR (Persistente) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("Archivio e Totali")
     totale = sum(item.get('Pezzi', 0) for item in st.session_state.archivio_dati)
     st.metric("Totale Pezzi Globale", totale)
     st.divider()
-    
     if st.session_state.archivio_dati:
-        file_excel = genera_excel()
-        st.download_button(
-            label="📥 Scarica Report Globale",
-            data=file_excel,
-            file_name="Riepilogo_Inventario.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        st.download_button("📥 Scarica Report Excel", genera_excel(), "Inventario.xlsx")
 
-# --- INTERFACCIA PRINCIPALE ---
+# --- INTERFACCIA ---
 st.title("Inventario Multi-Cassa")
 
 if st.button("➕ Aggiungi Nuova Cassa"):
@@ -92,21 +90,19 @@ for i, tab in enumerate(tabs):
                 input_data.append({"Livello": f"Livello {j}", "Pezzi": q})
                 totale_cassa += q
 
-        if st.button(f"Conferma e Salva {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
-            if not num_cassa:
-                st.error("Inserisci il numero cassa!")
-            else:
-                for det in input_data:
-                    st.session_state.archivio_dati.append({
-                        "Cassa": num_cassa,
-                        "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "Codice": codice_articolo,
-                        "Cliente": nome_cliente,
-                        "Livello": det["Livello"],
-                        "Pezzi": det["Pezzi"],
-                        "Totale_Cassa": totale_cassa
-                    })
-                
-                salva_su_disco()
-                st.success("Dati salvati!")
-                st.rerun()
+        if st.button(f"Salva {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
+            # Qui scriviamo solo il primo livello con i dati completi
+            # e i successivi con dati "vuoti" per evitare ripetizioni nel report
+            for idx, det in enumerate(input_data):
+                st.session_state.archivio_dati.append({
+                    "Cassa": num_cassa if idx == 0 else "",
+                    "Data": datetime.now().strftime("%d/%m/%Y %H:%M") if idx == 0 else "",
+                    "Codice": codice_articolo if idx == 0 else "",
+                    "Cliente": nome_cliente if idx == 0 else "",
+                    "Livello": det["Livello"],
+                    "Pezzi": det["Pezzi"],
+                    "Totale_Cassa": totale_cassa if idx == 0 else ""
+                })
+            salva_su_disco()
+            st.success("Dati salvati!")
+            st.rerun()
