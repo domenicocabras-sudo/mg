@@ -25,7 +25,7 @@ if 'casse_aperte' not in st.session_state:
 
 # --- FUNZIONI ---
 def salva_su_disco():
-    # Salviamo i dati senza il campo 'foto_bytes' nel CSV (non sarebbe salvabile su testo)
+    # Salviamo solo i dati testuali nel CSV
     dati_per_csv = [{k: v for k, v in item.items() if k != 'foto_bytes'} for item in st.session_state.archivio_dati]
     df = pd.DataFrame(dati_per_csv)
     df.to_csv(DB_FILE, index=False)
@@ -38,19 +38,21 @@ def genera_excel():
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
         headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
-        for i, h in enumerate(headers): ws.write(0, i, h, hdr)
+        for i, h in enumerate(headers):
+            ws.write(0, i, h, hdr)
         
         row_idx = 1
-        # Raggruppiamo per "gruppo di salvataggio" (usiamo l'indice del gruppo)
         for entry in st.session_state.archivio_dati:
-            # Foto
-            if 'foto_bytes' in entry and entry['foto_bytes']:
-                ws.insert_image(row_idx, 0, "foto.jpg", {
-                    'image_data': io.BytesIO(entry['foto_bytes']), 
-                    'x_scale': 0.1, 'y_scale': 0.1
-                })
+            # Inserimento Foto
+            if entry.get('foto_bytes'):
+                try:
+                    ws.insert_image(row_idx, 0, "foto.jpg", {
+                        'image_data': io.BytesIO(entry['foto_bytes']), 
+                        'x_scale': 0.1, 'y_scale': 0.1
+                    })
+                except:
+                    ws.write(row_idx, 0, "Errore Foto", fmt)
             
-            # Scrittura condizionale: appare solo se non è vuoto
             ws.write(row_idx, 1, entry.get('Cassa', ''), fmt)
             ws.write(row_idx, 2, entry.get('Data', ''), fmt)
             ws.write(row_idx, 3, entry.get('Codice', ''), fmt)
@@ -58,12 +60,46 @@ def genera_excel():
             ws.write(row_idx, 5, entry.get('Livello', ''), fmt)
             ws.write(row_idx, 6, entry.get('Pezzi', 0), fmt)
             ws.write(row_idx, 7, entry.get('Totale_Cassa', 0), fmt)
-            ws.set_row(row_idx, 60) # Altezza riga per la foto
+            ws.set_row(row_idx, 60)
             row_idx += 1
     return output.getvalue()
 
-# --- INTERFACCIA (LOGICA DI SALVATAGGIO) ---
-# ... (nella parte del tasto "Conferma e Salva") ...
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("Archivio e Totali")
+    totale = sum(item.get('Pezzi', 0) for item in st.session_state.archivio_dati if isinstance(item.get('Pezzi'), int))
+    st.metric("Totale Pezzi Globale", totale)
+    st.divider()
+    if st.session_state.archivio_dati:
+        st.download_button("📥 Scarica Report Excel", genera_excel(), "Inventario.xlsx")
+
+# --- INTERFACCIA ---
+st.title("Inventario Multi-Cassa")
+
+if st.button("➕ Aggiungi Nuova Cassa"):
+    st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
+    st.rerun()
+
+tabs = st.tabs(st.session_state.casse_aperte)
+
+for i, tab in enumerate(tabs):
+    with tab:
+        col_a, col_b, col_c = st.columns([1, 2, 2])
+        num_cassa = col_a.text_input("Numero Cassa:", key=f"cassa_{i}")
+        codice_articolo = col_b.text_input("Codice Articolo:", key=f"codice_{i}")
+        nome_cliente = col_c.text_input("Nome Cliente:", key=f"cliente_{i}")
+
+        cols = st.columns(4)
+        input_data = []
+        totale_cassa = 0
+        for j in range(1, 5):
+            q = cols[j-1].number_input(f"Quantità (Livello {j}):", min_value=0, key=f"q_{i}_{j}")
+            if q > 0:
+                input_data.append({"Livello": f"Livello {j}", "Pezzi": q})
+                totale_cassa += q
+
+        uploaded_file = st.file_uploader(f"Foto Cassa {i+1}", type=['jpg', 'png'], key=f"up_{i}")
+
         if uploaded_file and st.button(f"Salva {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             foto_bytes = uploaded_file.getvalue()
             for idx, det in enumerate(input_data):
@@ -78,4 +114,5 @@ def genera_excel():
                     "foto_bytes": foto_bytes if idx == 0 else None
                 })
             salva_su_disco()
+            st.success("Dati salvati!")
             st.rerun()
