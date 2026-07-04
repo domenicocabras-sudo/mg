@@ -6,12 +6,11 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE E PERCORSO ---
+# --- CONFIGURAZIONE ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
-# --- 1. GESTIONE DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -29,17 +28,18 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
-# --- 2. INTERFACCIA ---
+# --- INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
-# Allineamento Titolo e Bottone Aggiungi Cassa
-col_titolo, col_btn = st.columns([0.85, 0.15])
-with col_titolo: 
+# Layout Titolo e Bottone allineati
+col1, col2 = st.columns([0.8, 0.2])
+with col1:
     st.title("Inventario Multi-Cassa")
-with col_btn:
-    st.markdown("<br>", unsafe_allow_html=True) # Allineamento verticale
-    if st.button("➕ Aggiungi Cassa"):
+with col2:
+    # Aggiunge spazio per allineare il bottone visivamente al titolo
+    st.markdown("<div style='height: 35px;'></div>", unsafe_allow_html=True)
+    if st.button("➕ Aggiungi Cassa", use_container_width=True):
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
 
@@ -55,11 +55,7 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
-        dati_totali = leggi_dal_db()
-        totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
-        
-        if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
+        if st.button(f"💾 Salva Dati Cassa {i+1}", key=f"btn_{i}", use_container_width=True):
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
             conn = sqlite3.connect(DB_FILE)
@@ -73,17 +69,9 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
-        # --- 3. SIDEBAR E DOWNLOAD ---
+        # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
-            st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
-            
-            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
-                conn = sqlite3.connect(DB_FILE)
-                conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
-                conn.commit()
-                conn.close()
-                st.rerun()
-
+            st.header(f"Gestione: {st.session_state.casse_aperte[i]}")
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
             if dati_filtrati:
@@ -93,9 +81,7 @@ for i, tab in enumerate(tabs):
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
-                    ws.set_column('A:G', 15)
                     ws.write_row(0, 0, ["Foto", "Cassa", "Codice", "Cliente", "Data", "Livello", "Pezzi"])
-                    
                     last_session = None
                     for r, entry in enumerate(dati_filtrati, 1):
                         if entry.get('foto_bytes'):
@@ -108,8 +94,11 @@ for i, tab in enumerate(tabs):
                         last_session = entry['session_id']
                         ws.set_row(r, 60)
                 
-                st.download_button(
-                    label=f"📥 Scarica: {nome_file}", 
-                    data=output.getvalue(), 
-                    file_name=nome_file
-                )
+                st.download_button(label=f"📥 Scarica: {nome_file}", data=output.getvalue(), file_name=nome_file, use_container_width=True)
+
+            if st.button(f"🔄 Reset {st.session_state.casse_aperte[i]}", key=f"reset_{i}", use_container_width=True):
+                conn = sqlite3.connect(DB_FILE)
+                conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
+                conn.commit()
+                conn.close()
+                st.rerun()
