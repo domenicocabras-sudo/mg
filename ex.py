@@ -28,10 +28,18 @@ with col_btn:
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
 
+# Usiamo una radio o tabs per identificare la cassa attiva
+# Poiché le tabs non notificano facilmente la sidebar, usiamo la session_state
+if 'tab_attiva' not in st.session_state: st.session_state.tab_attiva = 0
+
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
+        # Quando l'utente clicca sulla tab, aggiorniamo l'indice attivo
+        if st.checkbox("Seleziona questa cassa per il report", key=f"sel_{i}"):
+            st.session_state.tab_attiva = i
+            
         num_cassa = st.text_input("Numero Cassa:", key=f"id_{i}")
         codice = st.text_input("Codice Articolo:", key=f"cod_{i}")
         cliente = st.text_input("Nome Cliente:", key=f"cli_{i}")
@@ -39,7 +47,6 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
-        # CONTATORE: Somma SOLO i pezzi già salvati per questa tab (i)
         totale_archiviato = sum(item['Pezzi'] for item in st.session_state.archivio_dati if item.get('tab_index') == i)
         st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
         
@@ -54,21 +61,23 @@ for i, tab in enumerate(tabs):
             salva_su_disco()
             st.rerun()
 
-# --- 3. SIDEBAR (REPORT E PULIZIA) ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    st.header("Archivio e Controlli")
-    if st.button("🧹 Pulisci TUTTO l'archivio"):
-        st.session_state.archivio_dati = []
-        salva_su_disco()
-        st.rerun()
+    st.header(f"Report: {st.session_state.casse_aperte[st.session_state.tab_attiva]}")
     
-    st.divider()
-    if st.session_state.archivio_dati:
+    # Filtriamo i dati per la cassa selezionata
+    tab_idx = st.session_state.tab_attiva
+    dati_filtrati = [d for d in st.session_state.archivio_dati if d.get('tab_index') == tab_idx]
+    
+    if dati_filtrati:
         output = io.BytesIO()
         with xlsxwriter.Workbook(output) as wb:
             ws = wb.add_worksheet("Inventario")
             ws.write_row(0, 0, ["Cassa", "Codice", "Cliente", "Livello", "Pezzi"])
-            for r, entry in enumerate(st.session_state.archivio_dati, 1):
+            for r, entry in enumerate(dati_filtrati, 1):
                 ws.write_row(r, 0, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Livello'], entry['Pezzi']])
         
-        st.download_button("📥 Scarica Report Excel", output.getvalue(), "Inventario.xlsx")
+        st.download_button(f"📥 Scarica Excel {st.session_state.casse_aperte[tab_idx]}", 
+                           output.getvalue(), f"Report_{st.session_state.casse_aperte[tab_idx]}.xlsx")
+    else:
+        st.write("Nessun dato per la cassa selezionata.")
