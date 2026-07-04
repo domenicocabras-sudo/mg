@@ -6,7 +6,13 @@ import xlsxwriter
 import os
 
 from datetime import datetime
-
+# --- DEBUG PERCORSO ---
+# Questo stampa nel terminale dove il sistema pensa di scrivere il file
+DB_FILE = "inventario.db"
+percorso_assoluto = os.path.abspath(DB_FILE)
+print(f"\n--- DEBUG: Il database sta cercando di essere scritto qui: ---")
+print(percorso_assoluto)
+print(f"-----------------------------------------------------------\n")
 # --- CONFIGURAZIONE ---
 st.set_page_config(layout="wide")
 DB_FILE = "inventario.db"
