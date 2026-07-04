@@ -6,12 +6,11 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE E PERCORSO RADICE ---
+# --- CONFIGURAZIONE E PERCORSO ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
-# --- 1. GESTIONE DATABASE (SQLite) ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -29,7 +28,7 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
-# --- 2. INTERFACCIA ---
+# --- INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
@@ -52,14 +51,9 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
-        dati_totali = leggi_dal_db()
-        totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
-        
         if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
-            
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             for j, q in enumerate(quantita):
@@ -69,44 +63,33 @@ for i, tab in enumerate(tabs):
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
-            st.success("Dati salvati!")
             st.rerun()
 
-        # --- 3. SIDEBAR E DOWNLOAD ---
+        # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
-            
-            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
-                conn = sqlite3.connect(DB_FILE)
-                conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
-                conn.commit()
-                conn.close()
-                st.rerun()
-
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
+            
             if dati_filtrati:
-                # CREAZIONE NOME FILE DINAMICO CON CODICE ARTICOLO
-                codice_ref = dati_filtrati[-1].get('Codice', 'NoCode')
-                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{codice_ref}.xlsx"
+                # CREAZIONE NOME FILE CON CODICE E DATA/ORA
+                codice_val = dati_filtrati[-1].get('Codice', 'NoCode')
+                orario = datetime.now().strftime("%H%M%S")
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{codice_val}_{orario}.xlsx"
                 
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
-                    ws.set_column('A:G', 15)
                     ws.write_row(0, 0, ["Foto", "Cassa", "Codice", "Cliente", "Data", "Livello", "Pezzi"])
-                    
                     last_session = None
                     for r, entry in enumerate(dati_filtrati, 1):
                         if entry.get('foto_bytes'):
                             ws.insert_image(r, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
-                        
                         if entry['session_id'] != last_session:
                             ws.write_row(r, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
                         else:
                             ws.write(r, 5, entry['Livello'])
                             ws.write(r, 6, entry['Pezzi'])
                         last_session = entry['session_id']
-                        ws.set_row(r, 60)
                 
                 st.download_button(
                     label=f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
