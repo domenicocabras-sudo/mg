@@ -6,12 +6,14 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE DATABASE ---
+st.set_page_config(layout="wide")
 DB_FILE = "inventario.db"
 
+# --- 1. GESTIONE ARCHIVIO (SQLite) ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    # Usiamo una tabella per memorizzare i record
     c.execute('''CREATE TABLE IF NOT EXISTS inventario 
                  (tab_index INTEGER, session_id TEXT, Cassa TEXT, Codice TEXT, 
                   Cliente TEXT, Data TEXT, Livello TEXT, Pezzi INTEGER, foto_bytes BLOB)''')
@@ -20,15 +22,30 @@ def init_db():
 
 init_db()
 
-st.set_page_config(layout="wide")
-st.title("Inventario Multi-Cassa")
+# Caricamento iniziale in session_state
+if 'archivio_dati' not in st.session_state:
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM inventario", conn)
+    conn.close()
+    st.session_state.archivio_dati = df.to_dict('records')
 
-# --- STATO SESSIONE ---
-if 'casse_aperte' not in st.session_state:
-    st.session_state.casse_aperte = ["Cassa 1"]
+def salva_su_db(nuovi_dati):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    for item in nuovi_dati:
+        c.execute("INSERT INTO inventario VALUES (?,?,?,?,?,?,?,?,?)", 
+                  (item['tab_index'], item['session_id'], item['Cassa'], item['Codice'], 
+                   item['Cliente'], item['Data'], item['Livello'], item['Pezzi'], item['foto_bytes']))
+    conn.commit()
+    conn.close()
+    # Aggiorniamo la sessione
+    st.session_state.archivio_dati = pd.read_sql_query("SELECT * FROM inventario", sqlite3.connect(DB_FILE)).to_dict('records')
 
-# --- INTERFACCIA ---
+# --- 2. INTERFACCIA ---
+if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
+
 col_titolo, col_btn = st.columns([4, 1])
+with col_titolo: st.title("Inventario Multi-Cassa")
 with col_btn:
     if st.button("➕ Aggiungi Cassa"):
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
@@ -46,45 +63,55 @@ for i, tab in enumerate(tabs):
         cols = st.columns(4)
         quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
         
+        totale_archiviato = sum(item['Pezzi'] for item in st.session_state.archivio_dati if item.get('tab_index') == i)
+        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
+        
         if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
             
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
+            nuovi_records = []
             for j, q in enumerate(quantita):
                 if q > 0:
-                    c.execute("INSERT INTO inventario VALUES (?,?,?,?,?,?,?,?,?)", 
-                              (i, session_timestamp, num_cassa, codice, cliente, 
-                               session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
-            conn.commit()
-            conn.close()
-            st.success("Salvato!")
+                    nuovi_records.append({
+                        "tab_index": i, "session_id": session_timestamp,
+                        "Cassa": num_cassa, "Codice": codice, "Cliente": cliente, 
+                        "Data": session_timestamp, "Livello": f"L{j+1}", "Pezzi": q,
+                        "foto_bytes": foto_bytes if j == 0 else None
+                    })
+            salva_su_db(nuovi_records)
+            st.rerun()
 
-        # --- SIDEBAR DOWNLOAD ---
+        # SIDEBAR DINAMICA
         with st.sidebar:
-            st.header(f"Gestione: {st.session_state.casse_aperte[i]}")
-            
-            conn = sqlite3.connect(DB_FILE)
-            df_cassa = pd.read_sql_query("SELECT * FROM inventario WHERE tab_index = ?", conn, params=(i,))
-            conn.close()
-            
-            if not df_cassa.empty:
-                nome_file = f"Report_{st.session_state.casse_aperte[i]}.xlsx"
+            st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
+            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
+                conn = sqlite3.connect(DB_FILE)
+                conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
+                conn.commit()
+                conn.close()
+                st.session_state.archivio_dati = pd.read_sql_query("SELECT * FROM inventario", sqlite3.connect(DB_FILE)).to_dict('records')
+                st.rerun()
+
+            dati_filtrati = [d for d in st.session_state.archivio_dati if d.get('tab_index') == i]
+            if dati_filtrati:
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
-                    headers = ["Foto", "Cassa", "Codice", "Cliente", "Data", "Livello", "Pezzi"]
-                    ws.write_row(0, 0, headers)
-                    for r, row in enumerate(df_cassa.to_dict('records'), 1):
-                        ws.write_row(r, 1, [row['Cassa'], row['Codice'], row['Cliente'], 
-                                           row['Data'], row['Livello'], row['Pezzi']])
+                    ws.set_column('A:F', 15)
+                    ws.write_row(0, 0, ["Foto", "Cassa", "Codice", "Cliente", "Data", "Livello", "Pezzi"])
+                    
+                    last_session = None
+                    for r, entry in enumerate(dati_filtrati, 1):
+                        if entry.get('foto_bytes'):
+                            ws.insert_image(r, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                        if entry['session_id'] != last_session:
+                            ws.write_row(r, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
+                        else:
+                            ws.write(r, 5, entry['Livello'])
+                            ws.write(r, 6, entry['Pezzi'])
+                        last_session = entry['session_id']
+                        ws.set_row(r, 60)
                 
-                st.download_button(f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
-                
-                if st.button(f"🔄 Reset {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
-                    conn = sqlite3.connect(DB_FILE)
-                    conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
+                st.download_button(f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
+                                   output.getvalue(), f"Report_{st.session_state.casse_aperte[i]}.xlsx")
