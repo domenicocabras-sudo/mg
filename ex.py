@@ -16,15 +16,13 @@ if 'archivio_dati' not in st.session_state:
         try:
             df = pd.read_csv(DB_FILE)
             st.session_state.archivio_dati = df.to_dict('records')
-        except:
-            pass
+        except: pass
 
 if 'casse_aperte' not in st.session_state:
     st.session_state.casse_aperte = ["Cassa 1"]
 
 # --- FUNZIONI ---
 def salva_su_disco():
-    # Salviamo solo i campi testuali per il CSV
     dati_per_csv = [{k: v for k, v in item.items() if k != 'foto_bytes'} for item in st.session_state.archivio_dati]
     pd.DataFrame(dati_per_csv).to_csv(DB_FILE, index=False)
 
@@ -32,7 +30,6 @@ def genera_excel():
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
         ws = wb.add_worksheet("Inventario")
-        # Formattazione
         fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
         hdr = wb.add_format({'bold': True, 'fg_color': '#D7E4BC', 'border': 1, 'align': 'center'})
         
@@ -44,6 +41,8 @@ def genera_excel():
                 try:
                     ws.insert_image(r, 0, "foto.jpg", {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
                 except: pass
+            
+            # Scrittura: se il valore è vuoto, la cella rimane vuota (effetto "non ripetuto")
             ws.write(r, 1, str(entry.get('Cassa', '')), fmt)
             ws.write(r, 2, str(entry.get('Data', '')), fmt)
             ws.write(r, 3, str(entry.get('Codice', '')), fmt)
@@ -57,6 +56,7 @@ def genera_excel():
 # --- SIDEBAR (ARCHIVIO E TOTALI) ---
 with st.sidebar:
     st.header("Archivio e Totali")
+    # Calcola il totale dai dati presenti in memoria
     totale_globale = sum(int(item['Pezzi']) for item in st.session_state.archivio_dati if str(item.get('Pezzi', 0)).isdigit())
     st.metric("Totale Pezzi Globale", totale_globale)
     st.divider()
@@ -73,10 +73,10 @@ if st.button("➕ Aggiungi Nuova Cassa"):
 tabs = st.tabs(st.session_state.casse_aperte)
 for i, tab in enumerate(tabs):
     with tab:
-        col_a, col_b, col_c = st.columns([1, 2, 2])
-        num_cassa = col_a.text_input("Numero Cassa:", key=f"cassa_{i}")
-        codice = col_b.text_input("Codice Articolo:", key=f"codice_{i}")
-        cliente = col_c.text_input("Nome Cliente:", key=f"cliente_{i}")
+        # Usiamo variabili temporanee per l'input, non legate direttamente all'archivio
+        num_cassa = st.text_input("Numero Cassa:", key=f"cassa_{i}")
+        codice = st.text_input("Codice Articolo:", key=f"codice_{i}")
+        cliente = st.text_input("Nome Cliente:", key=f"cliente_{i}")
         
         cols = st.columns(4)
         input_data = []
@@ -88,8 +88,10 @@ for i, tab in enumerate(tabs):
                 totale_cassa += q
         
         uploaded = st.file_uploader("Carica Foto", key=f"up_{i}")
+        
         if uploaded and st.button(f"Salva {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             f_bytes = uploaded.getvalue()
+            # La logica idx==0 assicura che Cassa/Codice/Cliente/Totale appaiano solo nella prima riga del gruppo
             for idx, d in enumerate(input_data):
                 st.session_state.archivio_dati.append({
                     "Cassa": num_cassa if idx == 0 else "", 
