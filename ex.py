@@ -69,7 +69,7 @@ for i, tab in enumerate(tabs):
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
-            st.success("Dati salvati nel database!")
+            st.success("Dati salvati!")
             st.rerun()
 
         # --- 3. SIDEBAR E DOWNLOAD ---
@@ -85,9 +85,10 @@ for i, tab in enumerate(tabs):
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             if dati_filtrati:
-                # RECUPERO CODICE ARTICOLO DALL'ULTIMO RECORD PER IL NOME FILE
-                ultimo_codice = dati_filtrati[-1].get('Codice', 'SenzaCodice')
-                nome_file_excel = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx"
+                # NOME FILE DINAMICO: Cassa + Codice + Timestamp
+                ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
+                timestamp = datetime.now().strftime("%H%M")
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}_{timestamp}.xlsx"
                 
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
@@ -111,5 +112,5 @@ for i, tab in enumerate(tabs):
                 st.download_button(
                     label=f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
                     data=output.getvalue(), 
-                    file_name=nome_file_excel
+                    file_name=nome_file
                 )
