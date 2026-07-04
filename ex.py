@@ -6,12 +6,11 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE E PERCORSO RADICE ---
+# --- CONFIGURAZIONE ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
-# --- 1. GESTIONE DATABASE (SQLite) ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -29,7 +28,7 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
-# --- 2. INTERFACCIA ---
+# --- INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
@@ -59,7 +58,6 @@ for i, tab in enumerate(tabs):
         if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
-            
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             for j, q in enumerate(quantita):
@@ -69,10 +67,9 @@ for i, tab in enumerate(tabs):
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
-            st.success("Dati salvati!")
             st.rerun()
 
-        # --- 3. SIDEBAR E DOWNLOAD ---
+        # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
             
@@ -84,12 +81,13 @@ for i, tab in enumerate(tabs):
                 st.rerun()
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
+            
             if dati_filtrati:
-                # NOME FILE DINAMICO: Cassa + Codice + Timestamp
+                # Generiamo il nome dinamico PRIMA del download_button
                 ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
-                timestamp = datetime.now().strftime("%H%M")
-                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}_{timestamp}.xlsx"
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx"
                 
+                # Creazione file in memoria
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
@@ -100,7 +98,6 @@ for i, tab in enumerate(tabs):
                     for r, entry in enumerate(dati_filtrati, 1):
                         if entry.get('foto_bytes'):
                             ws.insert_image(r, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
-                        
                         if entry['session_id'] != last_session:
                             ws.write_row(r, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
                         else:
@@ -109,8 +106,9 @@ for i, tab in enumerate(tabs):
                         last_session = entry['session_id']
                         ws.set_row(r, 60)
                 
+                # Il download button leggerà ora il valore corrente di nome_file
                 st.download_button(
-                    label=f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
+                    label=f"📥 Scarica: {nome_file}", 
                     data=output.getvalue(), 
                     file_name=nome_file
                 )
