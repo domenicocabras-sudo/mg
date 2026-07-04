@@ -6,11 +6,17 @@ import xlsxwriter
 
 st.set_page_config(layout="wide")
 
-# Inizializzazione stato
-if 'archivio_dati' not in st.session_state: st.session_state.archivio_dati = []
-if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
-if 'file_riepilogo' not in st.session_state: st.session_state.file_riepilogo = None
-if 'totale_globale' not in st.session_state: st.session_state.totale_globale = 0
+# --- INIZIALIZZAZIONE STATO (Persistenza Dati) ---
+if 'archivio_dati' not in st.session_state: 
+    st.session_state.archivio_dati = []
+if 'casse_aperte' not in st.session_state: 
+    st.session_state.casse_aperte = ["Cassa 1"]
+if 'file_riepilogo' not in st.session_state: 
+    st.session_state.file_riepilogo = None
+
+# Funzione per calcolare il totale globale dinamicamente dai dati esistenti
+def calcola_totale_globale():
+    return sum(item['Pezzi'] for item in st.session_state.archivio_dati)
 
 # --- FUNZIONE GENERAZIONE EXCEL ---
 def genera_excel():
@@ -26,7 +32,6 @@ def genera_excel():
         
         row = 1
         for entry in st.session_state.archivio_dati:
-            # Inserimento Immagine
             ws.insert_image(row, 0, "foto.jpg", {
                 'image_data': io.BytesIO(entry['foto_bytes']), 
                 'x_scale': 0.05, 'y_scale': 0.05
@@ -45,7 +50,9 @@ def genera_excel():
 # --- SIDEBAR (Sempre presente) ---
 with st.sidebar:
     st.header("Archivio e Totali")
-    st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
+    # Calcolo dinamico: non si perde mai perché legge da st.session_state.archivio_dati
+    totale_globale = calcola_totale_globale()
+    st.metric("Totale Pezzi Globale", totale_globale)
     st.divider()
     if st.session_state.file_riepilogo:
         st.download_button("📥 Scarica Report Globale Aggiornato", st.session_state.file_riepilogo, "Riepilogo_Inventario.xlsx")
@@ -78,7 +85,6 @@ for i, tab in enumerate(tabs):
         uploaded_file = st.file_uploader(f"Trascina Foto {st.session_state.casse_aperte[i]}", type=['jpg', 'png'], key=f"up_{i}")
 
         if uploaded_file and st.button(f"Conferma e Salva {st.session_state.casse_aperte[i]}"):
-            st.session_state.totale_globale += totale_cassa
             foto_bytes = uploaded_file.getvalue()
             
             for det in input_data:
@@ -90,4 +96,5 @@ for i, tab in enumerate(tabs):
                 })
             
             st.session_state.file_riepilogo = genera_excel()
-            st.success("Dati salvati e file aggiornato!")
+            st.success("Dati salvati!")
+            st.rerun()
