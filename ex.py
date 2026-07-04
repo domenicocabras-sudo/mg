@@ -4,11 +4,17 @@ import io
 import xlsxwriter
 import os
 from datetime import datetime
-PERCORSO_FILE = os.path.abspath(DB_FILE)
-st.sidebar.warning(f"Il file si trova qui: {PERCORSO_FILE}")
+#PERCORSO_FILE = os.path.abspath(DB_FILE)
+#st.sidebar.warning(f"Il file si trova qui: {PERCORSO_FILE}")
 st.set_page_config(layout="wide")
 DB_FILE = "inventario_salvato.csv"
+# Questa riga serve a te per vedere dove finisce il file
+PERCORSO_FILE = os.path.abspath(DB_FILE)
 
+st.set_page_config(layout="wide")
+
+# Visualizza il percorso nella barra laterale così sai dove cercare
+st.sidebar.info(f"📍 Il file si trova qui:\n{PERCORSO_FILE}")
 # --- 1. GESTIONE ARCHIVIO ---
 if 'archivio_dati' not in st.session_state:
     st.session_state.archivio_dati = []
