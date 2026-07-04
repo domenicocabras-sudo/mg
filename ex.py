@@ -41,8 +41,6 @@ def genera_excel():
                 try:
                     ws.insert_image(r, 0, "foto.jpg", {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
                 except: pass
-            
-            # Scrittura: se il valore è vuoto, la cella rimane vuota (effetto "non ripetuto")
             ws.write(r, 1, str(entry.get('Cassa', '')), fmt)
             ws.write(r, 2, str(entry.get('Data', '')), fmt)
             ws.write(r, 3, str(entry.get('Codice', '')), fmt)
@@ -53,16 +51,6 @@ def genera_excel():
             ws.set_row(r, 60)
     return output.getvalue()
 
-# --- SIDEBAR (ARCHIVIO E TOTALI) ---
-with st.sidebar:
-    st.header("Archivio e Totali")
-    # Calcola il totale dai dati presenti in memoria
-    totale_globale = sum(int(item['Pezzi']) for item in st.session_state.archivio_dati if str(item.get('Pezzi', 0)).isdigit())
-    st.metric("Totale Pezzi Globale", totale_globale)
-    st.divider()
-    if st.session_state.archivio_dati:
-        st.download_button("📥 Scarica Report Excel", genera_excel(), "Inventario.xlsx")
-
 # --- INTERFACCIA PRINCIPALE ---
 st.title("Inventario Multi-Cassa")
 
@@ -71,27 +59,31 @@ if st.button("➕ Aggiungi Nuova Cassa"):
     st.rerun()
 
 tabs = st.tabs(st.session_state.casse_aperte)
+
+# Variabile per il totale della cassa attiva
+totale_cassa_attiva = 0
+
 for i, tab in enumerate(tabs):
     with tab:
-        # Usiamo variabili temporanee per l'input, non legate direttamente all'archivio
         num_cassa = st.text_input("Numero Cassa:", key=f"cassa_{i}")
         codice = st.text_input("Codice Articolo:", key=f"codice_{i}")
         cliente = st.text_input("Nome Cliente:", key=f"cliente_{i}")
         
         cols = st.columns(4)
         input_data = []
-        totale_cassa = 0
+        totale_cassa_temp = 0
         for j in range(1, 5):
             q = cols[j-1].number_input(f"Quantità L{j}:", min_value=0, key=f"q_{i}_{j}")
             if q > 0:
                 input_data.append({"Livello": f"Livello {j}", "Pezzi": q})
-                totale_cassa += q
+                totale_cassa_temp += q
+        
+        # Mostriamo il totale parziale della sessione in corso nella tab
+        st.write(f"### Totale parziale cassa corrente: {totale_cassa_temp}")
         
         uploaded = st.file_uploader("Carica Foto", key=f"up_{i}")
-        
         if uploaded and st.button(f"Salva {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
             f_bytes = uploaded.getvalue()
-            # La logica idx==0 assicura che Cassa/Codice/Cliente/Totale appaiano solo nella prima riga del gruppo
             for idx, d in enumerate(input_data):
                 st.session_state.archivio_dati.append({
                     "Cassa": num_cassa if idx == 0 else "", 
@@ -100,9 +92,19 @@ for i, tab in enumerate(tabs):
                     "Cliente": cliente if idx == 0 else "",
                     "Livello": d["Livello"], 
                     "Pezzi": d["Pezzi"], 
-                    "Totale_Cassa": totale_cassa if idx == 0 else "",
+                    "Totale_Cassa": totale_cassa_temp if idx == 0 else "",
                     "foto_bytes": f_bytes if idx == 0 else None
                 })
             salva_su_disco()
-            st.success("Dati salvati!")
             st.rerun()
+        
+        # Aggiorniamo il totale per la sidebar
+        totale_cassa_attiva = totale_cassa_temp
+
+# --- SIDEBAR (ARCHIVIO E TOTALI) ---
+with st.sidebar:
+    st.header("Archivio e Totali")
+    st.metric("Totale Pezzi (Cassa Attiva)", totale_cassa_attiva)
+    st.divider()
+    if st.session_state.archivio_dati:
+        st.download_button("📥 Scarica Report Excel", genera_excel(), "Inventario.xlsx")
