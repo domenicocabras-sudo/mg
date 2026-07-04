@@ -6,8 +6,9 @@ import xlsxwriter
 
 st.set_page_config(layout="wide")
 
-# --- INIZIALIZZAZIONE STATO ---
-# Usiamo il session_state per rendere i dati "immortali" finché la sessione è attiva
+# --- INIZIALIZZAZIONE STATO (LA "MEMORIA" DEL PROGRAMMA) ---
+# Se queste variabili non esistono, le creiamo. 
+# Se esistono, NON le sovrascriviamo, così sopravvivono al refresh.
 if 'archivio_dati' not in st.session_state: 
     st.session_state.archivio_dati = []
 if 'casse_aperte' not in st.session_state: 
@@ -17,10 +18,7 @@ if 'file_riepilogo' not in st.session_state:
 if 'totale_globale' not in st.session_state:
     st.session_state.totale_globale = 0
 
-# --- FUNZIONI ---
-def calcola_totale_globale():
-    return sum(item['Pezzi'] for item in st.session_state.archivio_dati)
-
+# --- FUNZIONE GENERAZIONE EXCEL ---
 def genera_excel():
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
@@ -34,14 +32,10 @@ def genera_excel():
         
         row = 1
         for entry in st.session_state.archivio_dati:
-            # Nota: la gestione immagini in memoria richiede attenzione al formato byte
-            try:
-                ws.insert_image(row, 0, "foto.jpg", {
-                    'image_data': io.BytesIO(entry['foto_bytes']), 
-                    'x_scale': 0.05, 'y_scale': 0.05
-                })
-            except:
-                ws.write(row, 0, "No Foto", fmt)
+            ws.insert_image(row, 0, "foto.jpg", {
+                'image_data': io.BytesIO(entry['foto_bytes']), 
+                'x_scale': 0.05, 'y_scale': 0.05
+            })
             ws.write(row, 1, entry['Cassa'], fmt)
             ws.write(row, 2, entry['Data'], fmt)
             ws.write(row, 3, entry['Codice'], fmt)
@@ -53,22 +47,23 @@ def genera_excel():
             row += 1
     return output.getvalue()
 
-# --- SIDEBAR (Persistente) ---
+# --- SIDEBAR ---
+# Questa parte viene rieseguita a ogni refresh, ma leggendo dal session_state
+# i dati saranno ancora lì!
 with st.sidebar:
     st.header("Archivio e Totali")
-    # Legge direttamente dal session_state che persiste durante il refresh
     st.metric("Totale Pezzi Globale", st.session_state.totale_globale)
     st.divider()
     
     if st.session_state.file_riepilogo:
         st.download_button(
-            label="📥 Scarica Report Globale Aggiornato", 
-            data=st.session_state.file_riepilogo, 
-            file_name="Riepilogo_Inventario.xlsx",
+            "📥 Scarica Report Globale Aggiornato", 
+            st.session_state.file_riepilogo, 
+            "Riepilogo_Inventario.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
-        st.info("Nessun dato ancora salvato.")
+        st.caption("Nessun dato salvato.")
 
 # --- INTERFACCIA PRINCIPALE ---
 st.title("Inventario Multi-Cassa")
@@ -98,9 +93,7 @@ for i, tab in enumerate(tabs):
         uploaded_file = st.file_uploader(f"Trascina Foto {st.session_state.casse_aperte[i]}", type=['jpg', 'png'], key=f"up_{i}")
 
         if uploaded_file and st.button(f"Conferma e Salva {st.session_state.casse_aperte[i]}"):
-            # Aggiorna il totale globale nello stato
             st.session_state.totale_globale += totale_cassa
-            
             foto_bytes = uploaded_file.getvalue()
             
             for det in input_data:
@@ -111,7 +104,6 @@ for i, tab in enumerate(tabs):
                     "Totale_Cassa": totale_cassa, "foto_bytes": foto_bytes
                 })
             
-            # Genera e salva il file nel session_state
             st.session_state.file_riepilogo = genera_excel()
-            st.success("Dati salvati con successo!")
+            st.success("Dati salvati!")
             st.rerun()
