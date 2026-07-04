@@ -6,3 +6,4 @@ pymupdf
 frontend
 opencv-python-headless
 xlsxwriter
+sqlite3
