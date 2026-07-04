@@ -20,7 +20,6 @@ def salva_su_disco():
 
 # --- 2. INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
-if 'tab_attiva' not in st.session_state: st.session_state.tab_attiva = 0
 
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario Multi-Cassa")
@@ -31,12 +30,9 @@ with col_btn:
 
 tabs = st.tabs(st.session_state.casse_aperte)
 
+# --- 3. LOGICA DINAMICA SIDEBAR ---
 for i, tab in enumerate(tabs):
     with tab:
-        # Checkbox per impostare la tab attiva per il report
-        if st.checkbox("Imposta questa cassa come 'Attiva' per il Report", key=f"sel_{i}"):
-            st.session_state.tab_attiva = i
-            
         num_cassa = st.text_input("Numero Cassa:", key=f"id_{i}")
         codice = st.text_input("Codice Articolo:", key=f"cod_{i}")
         cliente = st.text_input("Nome Cliente:", key=f"cli_{i}")
@@ -57,32 +53,27 @@ for i, tab in enumerate(tabs):
             salva_su_disco()
             st.rerun()
 
-# --- 3. SIDEBAR (REPORT E AZZERAMENTO) ---
-with st.sidebar:
-    st.header(f"Report: {st.session_state.casse_aperte[st.session_state.tab_attiva]}")
-    
-    # PULSANTE AZZERA CONTATORE
-    if st.button("🔄 Azzerare Contatore Cassa Selezionata"):
-        tab_idx = st.session_state.tab_attiva
-        st.session_state.archivio_dati = [d for d in st.session_state.archivio_dati if d.get('tab_index') != tab_idx]
-        salva_su_disco()
-        st.rerun()
+        # SIDEBAR DENTRO IL LOOP: si aggiorna solo quando questa tab è attiva
+        with st.sidebar:
+            st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
+            
+            # Bottone Azzeramento
+            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
+                st.session_state.archivio_dati = [d for d in st.session_state.archivio_dati if d.get('tab_index') != i]
+                salva_su_disco()
+                st.rerun()
 
-    st.divider()
-    
-    # DOWNLOAD REPORT
-    tab_idx = st.session_state.tab_attiva
-    dati_filtrati = [d for d in st.session_state.archivio_dati if d.get('tab_index') == tab_idx]
-    
-    if dati_filtrati:
-        output = io.BytesIO()
-        with xlsxwriter.Workbook(output) as wb:
-            ws = wb.add_worksheet("Inventario")
-            ws.write_row(0, 0, ["Cassa", "Codice", "Cliente", "Livello", "Pezzi"])
-            for r, entry in enumerate(dati_filtrati, 1):
-                ws.write_row(r, 0, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Livello'], entry['Pezzi']])
-        
-        st.download_button(f"📥 Scarica Excel {st.session_state.casse_aperte[tab_idx]}", 
-                           output.getvalue(), f"Report_{st.session_state.casse_aperte[tab_idx]}.xlsx")
-    else:
-        st.write("Nessun dato presente per questa cassa.")
+            # Bottone Excel dinamico
+            dati_filtrati = [d for d in st.session_state.archivio_dati if d.get('tab_index') == i]
+            if dati_filtrati:
+                output = io.BytesIO()
+                with xlsxwriter.Workbook(output) as wb:
+                    ws = wb.add_worksheet("Inventario")
+                    ws.write_row(0, 0, ["Cassa", "Codice", "Cliente", "Livello", "Pezzi"])
+                    for r, entry in enumerate(dati_filtrati, 1):
+                        ws.write_row(r, 0, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Livello'], entry['Pezzi']])
+                
+                st.download_button(f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
+                                   output.getvalue(), f"Report_{st.session_state.casse_aperte[i]}.xlsx")
+            else:
+                st.info("Nessun dato da scaricare.")
