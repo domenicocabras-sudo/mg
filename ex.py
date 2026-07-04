@@ -20,6 +20,7 @@ def salva_su_disco():
 
 # --- 2. INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: st.session_state.casse_aperte = ["Cassa 1"]
+if 'tab_attiva' not in st.session_state: st.session_state.tab_attiva = 0
 
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario Multi-Cassa")
@@ -28,16 +29,12 @@ with col_btn:
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
 
-# Usiamo una radio o tabs per identificare la cassa attiva
-# Poiché le tabs non notificano facilmente la sidebar, usiamo la session_state
-if 'tab_attiva' not in st.session_state: st.session_state.tab_attiva = 0
-
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Quando l'utente clicca sulla tab, aggiorniamo l'indice attivo
-        if st.checkbox("Seleziona questa cassa per il report", key=f"sel_{i}"):
+        # Checkbox per impostare la tab attiva per il report
+        if st.checkbox("Imposta questa cassa come 'Attiva' per il Report", key=f"sel_{i}"):
             st.session_state.tab_attiva = i
             
         num_cassa = st.text_input("Numero Cassa:", key=f"id_{i}")
@@ -54,18 +51,26 @@ for i, tab in enumerate(tabs):
             for j, q in enumerate(quantita):
                 if q > 0:
                     st.session_state.archivio_dati.append({
-                        "tab_index": i, 
-                        "Cassa": num_cassa, "Codice": codice, 
+                        "tab_index": i, "Cassa": num_cassa, "Codice": codice, 
                         "Cliente": cliente, "Livello": f"L{j+1}", "Pezzi": q
                     })
             salva_su_disco()
             st.rerun()
 
-# --- 3. SIDEBAR ---
+# --- 3. SIDEBAR (REPORT E AZZERAMENTO) ---
 with st.sidebar:
     st.header(f"Report: {st.session_state.casse_aperte[st.session_state.tab_attiva]}")
     
-    # Filtriamo i dati per la cassa selezionata
+    # PULSANTE AZZERA CONTATORE
+    if st.button("🔄 Azzerare Contatore Cassa Selezionata"):
+        tab_idx = st.session_state.tab_attiva
+        st.session_state.archivio_dati = [d for d in st.session_state.archivio_dati if d.get('tab_index') != tab_idx]
+        salva_su_disco()
+        st.rerun()
+
+    st.divider()
+    
+    # DOWNLOAD REPORT
     tab_idx = st.session_state.tab_attiva
     dati_filtrati = [d for d in st.session_state.archivio_dati if d.get('tab_index') == tab_idx]
     
@@ -80,4 +85,4 @@ with st.sidebar:
         st.download_button(f"📥 Scarica Excel {st.session_state.casse_aperte[tab_idx]}", 
                            output.getvalue(), f"Report_{st.session_state.casse_aperte[tab_idx]}.xlsx")
     else:
-        st.write("Nessun dato per la cassa selezionata.")
+        st.write("Nessun dato presente per questa cassa.")
