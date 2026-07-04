@@ -30,17 +30,19 @@ def genera_excel():
     output = io.BytesIO()
     with xlsxwriter.Workbook(output, {'in_memory': True}) as wb:
         ws = wb.add_worksheet("Inventario")
-        # ... (formattazione omessa per brevità, mantieni quella precedente) ...
+        fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+        
         headers = ["Foto", "Cassa", "Data", "Codice", "Cliente", "Livello", "Pezzi", "Totale Cassa"]
         for i, h in enumerate(headers): ws.write(0, i, h)
+        
         for r, entry in enumerate(st.session_state.archivio_dati, 1):
-            ws.write(r, 1, str(entry.get('Cassa', '')))
-            ws.write(r, 2, str(entry.get('Data', '')))
-            ws.write(r, 3, str(entry.get('Codice', '')))
-            ws.write(r, 4, str(entry.get('Cliente', '')))
-            ws.write(r, 5, str(entry.get('Livello', '')))
-            ws.write(r, 6, entry.get('Pezzi', 0))
-            ws.write(r, 7, str(entry.get('Totale_Cassa', '')))
+            ws.write(r, 1, str(entry.get('Cassa', '')), fmt)
+            ws.write(r, 2, str(entry.get('Data', '')), fmt)
+            ws.write(r, 3, str(entry.get('Codice', '')), fmt)
+            ws.write(r, 4, str(entry.get('Cliente', '')), fmt)
+            ws.write(r, 5, str(entry.get('Livello', '')), fmt)
+            ws.write(r, 6, entry.get('Pezzi', 0), fmt)
+            ws.write(r, 7, str(entry.get('Totale_Cassa', '')), fmt)
     return output.getvalue()
 
 # --- INTERFACCIA ---
@@ -52,23 +54,29 @@ if st.button("➕ Aggiungi Nuova Cassa"):
 
 tabs = st.tabs(st.session_state.casse_aperte)
 
+# Variabile per il totale della cassa selezionata
+totale_cassa_attiva = 0
+
 for i, tab in enumerate(tabs):
     with tab:
-        # USARE LE CHIAVI NEL SESSION_STATE ASSICURA CHE I DATI RESTINO SCRITTI
         num_cassa = st.text_input("Numero Cassa:", key=f"inp_cassa_{i}")
         codice = st.text_input("Codice Articolo:", key=f"inp_codice_{i}")
         cliente = st.text_input("Nome Cliente:", key=f"inp_cliente_{i}")
         
         cols = st.columns(4)
         input_data = []
-        totale_cassa_temp = 0
+        totale_parziale = 0
         for j in range(1, 5):
             q = cols[j-1].number_input(f"Quantità L{j}:", min_value=0, key=f"inp_q_{i}_{j}")
             if q > 0:
                 input_data.append({"Livello": f"Livello {j}", "Pezzi": q})
-                totale_cassa_temp += q
+                totale_parziale += q
         
-        st.write(f"### Totale parziale cassa corrente: {totale_cassa_temp}")
+        # Filtriamo l'archivio per vedere quanto è già stato salvato in QUESTA cassa specifica
+        totale_gia_archiviato = sum(int(item['Pezzi']) for item in st.session_state.archivio_dati 
+                                   if item.get('Cassa') == num_cassa and str(item.get('Pezzi', 0)).isdigit())
+        
+        totale_cassa_attiva = totale_parziale + totale_gia_archiviato
         
         uploaded = st.file_uploader("Carica Foto", key=f"up_{i}")
         
@@ -82,17 +90,16 @@ for i, tab in enumerate(tabs):
                     "Cliente": cliente if idx == 0 else "",
                     "Livello": d["Livello"], 
                     "Pezzi": d["Pezzi"], 
-                    "Totale_Cassa": totale_cassa_temp if idx == 0 else "",
+                    "Totale_Cassa": totale_parziale if idx == 0 else "",
                     "foto_bytes": f_bytes if idx == 0 else None
                 })
             salva_su_disco()
-            st.success("Dati salvati!")
-            # NON facciamo rerun qui se vuoi mantenere il testo negli input
-            
+            st.rerun()
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("Archivio e Totali")
-    # Qui puoi decidere di mostrare il totale di TUTTO l'archivio o filtrarlo
-    st.metric("Totale Pezzi Archivio", sum(int(item['Pezzi']) for item in st.session_state.archivio_dati if str(item.get('Pezzi', 0)).isdigit()))
+    st.metric("Totale Pezzi (Cassa Selezionata)", totale_cassa_attiva)
+    st.divider()
     if st.session_state.archivio_dati:
         st.download_button("📥 Scarica Report Excel", genera_excel(), "Inventario.xlsx")
