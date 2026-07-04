@@ -4,7 +4,8 @@ import io
 import xlsxwriter
 import os
 from datetime import datetime
-
+PERCORSO_FILE = os.path.abspath(DB_FILE)
+st.sidebar.warning(f"Il file si trova qui: {PERCORSO_FILE}")
 st.set_page_config(layout="wide")
 DB_FILE = "inventario_salvato.csv"
 
