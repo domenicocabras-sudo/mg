@@ -8,7 +8,6 @@ from datetime import datetime
 
 # --- CONFIGURAZIONE E PERCORSO RADICE ---
 st.set_page_config(layout="wide")
-# Forza la creazione del DB nella cartella dove risiede questo script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
@@ -70,7 +69,7 @@ for i, tab in enumerate(tabs):
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
-            st.success("Dati salvati nel database!")
+            st.success("Dati salvati!")
             st.rerun()
 
         # --- 3. SIDEBAR E DOWNLOAD ---
@@ -86,6 +85,10 @@ for i, tab in enumerate(tabs):
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             if dati_filtrati:
+                # CREAZIONE NOME FILE DINAMICO CON CODICE ARTICOLO
+                codice_ref = dati_filtrati[-1].get('Codice', 'NoCode')
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{codice_ref}.xlsx"
+                
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
@@ -108,5 +111,5 @@ for i, tab in enumerate(tabs):
                 st.download_button(
                     label=f"📥 Scarica Report {st.session_state.casse_aperte[i]}", 
                     data=output.getvalue(), 
-                    file_name=f"Report_{st.session_state.casse_aperte[i]}.xlsx"
+                    file_name=nome_file
                 )
