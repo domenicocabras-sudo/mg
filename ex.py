@@ -6,11 +6,12 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE E PERCORSO ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
+# --- 1. GESTIONE DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -28,13 +29,16 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
-# --- INTERFACCIA ---
+# --- 2. INTERFACCIA ---
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
-col_titolo, col_btn = st.columns([4, 1])
-with col_titolo: st.title("Inventario Multi-Cassa")
+# Allineamento Titolo e Bottone Aggiungi Cassa
+col_titolo, col_btn = st.columns([0.85, 0.15])
+with col_titolo: 
+    st.title("Inventario Multi-Cassa")
 with col_btn:
+    st.markdown("<br>", unsafe_allow_html=True) # Allineamento verticale
     if st.button("➕ Aggiungi Cassa"):
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
@@ -69,7 +73,7 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
-        # --- SIDEBAR E DOWNLOAD ---
+        # --- 3. SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
             
@@ -83,11 +87,9 @@ for i, tab in enumerate(tabs):
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
             if dati_filtrati:
-                # Generiamo il nome dinamico PRIMA del download_button
                 ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
                 nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx"
                 
-                # Creazione file in memoria
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     ws = wb.add_worksheet("Inventario")
@@ -106,7 +108,6 @@ for i, tab in enumerate(tabs):
                         last_session = entry['session_id']
                         ws.set_row(r, 60)
                 
-                # Il download button leggerà ora il valore corrente di nome_file
                 st.download_button(
                     label=f"📥 Scarica: {nome_file}", 
                     data=output.getvalue(), 
