@@ -4,6 +4,7 @@ import sqlite3
 import io
 import xlsxwriter
 import os
+print(f"--- IL DATABASE SI TROVA QUI: {os.path.abspath('inventario.db')} ---")
 from datetime import datetime
 
 # --- CONFIGURAZIONE ---
