@@ -22,7 +22,7 @@ def init_db():
 
 init_db()
 
-# --- INIZIALIZZAZIONE STATO ---
+# --- INIZIALIZZAZIONE STATO PERSISTENTE ---
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
@@ -36,15 +36,19 @@ def leggi_dal_db():
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
+    # Aggiunta cassa: modifica direttamente lo stato e forza il ricalcolo
     if st.button("➕ Aggiungi Cassa"):
-        st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
+        nuovo_nome = f"Cassa {len(st.session_state.casse_aperte) + 1}"
+        st.session_state.casse_aperte.append(nuovo_nome)
         st.rerun()
 
+# --- RENDERING TABS ---
+# Usiamo la lista dallo stato. Poiché lo stato è persistente, le tab non spariranno.
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Usiamo il form per mantenere i dati durante il refresh
+        # Usiamo un form unico per ogni cassa
         with st.form(key=f"form_{i}"):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
