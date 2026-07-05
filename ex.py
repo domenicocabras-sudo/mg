@@ -64,6 +64,16 @@ for i, tab in enumerate(tabs):
         if f"codice_{i}" not in st.session_state: st.session_state[f"codice_{i}"] = ""
         if f"cliente_{i}" not in st.session_state: st.session_state[f"cliente_{i}"] = ""
 
+        # --- PULSANTE AZZERA CAMPI ---
+        if st.button(f"Azzera campi {casse_attive[i]}", key=f"clear_{i}"):
+            st.session_state[f"cassa_{i}"] = ""
+            st.session_state[f"codice_{i}"] = ""
+            st.session_state[f"cliente_{i}"] = ""
+            # Resetta anche le quantità numeriche
+            for j in range(4):
+                st.session_state[f"k_q_{i}_{j}"] = 0.0
+            st.rerun()
+
         with st.form(key=f"form_{i}", clear_on_submit=False):
             # Campi legati allo stato
             num_cassa = st.text_input("Numero Cassa:", value=st.session_state[f"cassa_{i}"], key=f"k_cassa_{i}")
