@@ -22,40 +22,42 @@ def init_db():
 
 init_db()
 
-# --- FUNZIONE DI INIZIALIZZAZIONE STATO ---
-def setup_state():
-    if 'casse_aperte' not in st.session_state:
-        st.session_state['casse_aperte'] = ["Cassa 1"]
+# --- GESTIONE PERSISTENZA ---
+if 'casse_aperte' not in st.session_state: 
+    st.session_state.casse_aperte = ["Cassa 1"]
 
-setup_state()
+def leggi_dal_db():
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("SELECT * FROM inventario", conn)
+    conn.close()
+    return df.to_dict('records')
 
 # --- INTERFACCIA ---
 col_titolo, col_btn = st.columns([4, 1])
-with col_titolo: 
-    st.title("Inventario")
+with col_titolo: st.title("Inventario")
 with col_btn:
     if st.button("➕ Aggiungi Cassa"):
-        nuovo_nome = f"Cassa {len(st.session_state['casse_aperte']) + 1}"
-        st.session_state['casse_aperte'].append(nuovo_nome)
+        st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
 
-# Utilizziamo la lista dal session state
-tabs = st.tabs(st.session_state['casse_aperte'])
+# Le tab leggono direttamente dallo stato persistente
+tabs = st.tabs(st.session_state.casse_aperte)
 
-for i, tab_name in enumerate(st.session_state['casse_aperte']):
-    with tabs[i]:
-        # Form per gestire i dati
-        with st.form(key=f"form_{i}"):
+for i, tab in enumerate(tabs):
+    with tab:
+        # Form per mantenere i dati ed evitare il reset durante il refresh
+        with st.form(key=f"form_{i}", clear_on_submit=True):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
             cliente = st.text_input("Nome Cliente:")
             foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
+            
             cols = st.columns(4)
             quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
-            submit_button = st.form_submit_button(label=f"Salva Dati {tab_name}")
+            
+            submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state.casse_aperte[i]}")
 
         if submit_button:
-            # Salvataggio DB
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
             conn = sqlite3.connect(DB_FILE)
@@ -69,12 +71,45 @@ for i, tab_name in enumerate(st.session_state['casse_aperte']):
             conn.close()
             st.rerun()
 
-        # Visualizzazione totale
-        conn = sqlite3.connect(DB_FILE)
-        dati_totali = pd.read_sql_query("SELECT * FROM inventario", conn).to_dict('records')
-        conn.close()
+        # Totale
+        dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-        st.metric(f"Totale pezzi salvati ({tab_name})", totale_archiviato)
+        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
 
-        # Sidebar e Download (mantenuto inalterato)
-        # ... (restante logica di download invariata)
+        # --- SIDEBAR E DOWNLOAD ---
+        with st.sidebar:
+            st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
+            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
+                conn = sqlite3.connect(DB_FILE)
+                conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
+                conn.commit()
+                conn.close()
+                st.rerun()
+
+            dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
+            
+            if dati_filtrati:
+                ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx".upper()
+                
+                output = io.BytesIO()
+                with xlsxwriter.Workbook(output) as wb:
+                    header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+                    cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
+                    
+                    ws = wb.add_worksheet("Inventario")
+                    ws.set_column('A:A', 20)
+                    ws.set_column('B:G', 15)
+                    ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
+                    
+                    row_idx = 1
+                    for entry in dati_filtrati:
+                        current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                        if entry.get('foto_bytes'):
+                            ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                        ws.write_row(row_idx, 1, [str(entry['Cassa']).upper(), str(entry['Codice']).upper(), str(entry['Cliente']).upper(), entry['Data'], str(entry['Livello']).upper(), entry['Pezzi']], current_fmt)
+                        ws.set_row(row_idx, 60)
+                        row_idx += 1
+                
+                st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
