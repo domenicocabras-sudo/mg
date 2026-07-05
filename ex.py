@@ -6,7 +6,7 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE E INIT ---
+# --- CONFIGURAZIONE ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
@@ -23,11 +23,14 @@ def init_db():
 
 init_db()
 
-# --- GESTIONE STATO PERSISTENTE (FONDAMENTALE) ---
-if 'casse_aperte' not in st.session_state:
-    st.session_state.casse_aperte = ["Cassa 1"]
+# --- INIZIALIZZAZIONE FORZATA DELLO STATO ---
+# Usiamo una funzione che viene chiamata subito
+def start_app():
+    if 'casse_aperte' not in st.session_state:
+        st.session_state['casse_aperte'] = ["Cassa 1"]
 
-# --- FUNZIONI UTILI ---
+start_app()
+
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -36,21 +39,19 @@ def leggi_dal_db():
 
 # --- INTERFACCIA ---
 col_titolo, col_btn = st.columns([4, 1])
-with col_titolo:
-    st.title("Inventario")
+with col_titolo: st.title("Inventario")
 with col_btn:
     if st.button("➕ Aggiungi Cassa"):
-        # Aggiungiamo alla lista nel session_state
-        nuova_cassa = f"Cassa {len(st.session_state.casse_aperte) + 1}"
-        st.session_state.casse_aperte.append(nuova_cassa)
+        nuova_cassa = f"Cassa {len(st.session_state['casse_aperte']) + 1}"
+        st.session_state['casse_aperte'].append(nuova_cassa)
         st.rerun()
 
-# --- RENDERING TABS ---
-# Leggiamo la lista SEMPRE dal session_state
-tabs = st.tabs(st.session_state.casse_aperte)
+# Rendering TABS basato sulla lista protetta nello stato
+tabs = st.tabs(st.session_state['casse_aperte'])
 
 for i, tab in enumerate(tabs):
     with tab:
+        # Form per persistenza dati
         with st.form(key=f"form_{i}", clear_on_submit=True):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
@@ -58,7 +59,7 @@ for i, tab in enumerate(tabs):
             foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
             cols = st.columns(4)
             quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
-            submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state.casse_aperte[i]}")
+            submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state['casse_aperte'][i]}")
 
         if submit_button:
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -74,25 +75,25 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
-        # Metriche
+        # Visualizzazione totale
         dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
+        st.metric(f"Totale pezzi salvati ({st.session_state['casse_aperte'][i]})", totale_archiviato)
 
-        # Sidebar e Download (Inalterato)
+        # Sidebar (Inalterata)
         with st.sidebar:
-            st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
-            if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
+            st.header(f"Archivio: {st.session_state['casse_aperte'][i]}")
+            if st.button(f"🔄 Azzerare {st.session_state['casse_aperte'][i]}", key=f"reset_{i}"):
                 conn = sqlite3.connect(DB_FILE)
                 conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
                 conn.commit()
                 conn.close()
                 st.rerun()
-            
+
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             if dati_filtrati:
                 ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
-                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx".upper()
+                nome_file = f"Report_{st.session_state['casse_aperte'][i]}_{ultimo_codice}.xlsx".upper()
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
