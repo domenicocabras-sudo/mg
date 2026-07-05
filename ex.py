@@ -50,7 +50,7 @@ def leggi_dal_db():
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
-    if st.button("➕ Aggiungi Cassa"):
+    if st.button("Aggiungi Cassa"):
         add_cassa()
         st.rerun()
 
@@ -59,14 +59,27 @@ tabs = st.tabs(casse_attive)
 
 for i, tab in enumerate(tabs):
     with tab:
-        with st.form(key=f"form_{i}", clear_on_submit=True):
-            num_cassa = st.text_input("Numero Cassa:")
-            codice = st.text_input("Codice Articolo:")
-            cliente = st.text_input("Nome Cliente:")
-            foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
+        # Inizializzazione chiavi persistenti per ogni cassa
+        if f"cassa_{i}" not in st.session_state: st.session_state[f"cassa_{i}"] = ""
+        if f"codice_{i}" not in st.session_state: st.session_state[f"codice_{i}"] = ""
+        if f"cliente_{i}" not in st.session_state: st.session_state[f"cliente_{i}"] = ""
+
+        with st.form(key=f"form_{i}", clear_on_submit=False):
+            # Campi legati allo stato
+            num_cassa = st.text_input("Numero Cassa:", value=st.session_state[f"cassa_{i}"], key=f"k_cassa_{i}")
+            codice = st.text_input("Codice Articolo:", value=st.session_state[f"codice_{i}"], key=f"k_codice_{i}")
+            cliente = st.text_input("Nome Cliente:", value=st.session_state[f"cliente_{i}"], key=f"k_cliente_{i}")
+            
+            foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'], key=f"k_foto_{i}")
             cols = st.columns(4)
-            quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
+            quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"k_q_{i}_{j}") for j in range(4)]
+            
             submit_button = st.form_submit_button(label=f"Salva Dati {casse_attive[i]}")
+
+        # Sincronizzazione continua stato
+        st.session_state[f"cassa_{i}"] = num_cassa
+        st.session_state[f"codice_{i}"] = codice
+        st.session_state[f"cliente_{i}"] = cliente
 
         if submit_button:
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -80,6 +93,10 @@ for i, tab in enumerate(tabs):
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
+            # Reset campi post salvataggio
+            st.session_state[f"cassa_{i}"] = ""
+            st.session_state[f"codice_{i}"] = ""
+            st.session_state[f"cliente_{i}"] = ""
             st.rerun()
 
         # Metriche
@@ -90,7 +107,7 @@ for i, tab in enumerate(tabs):
         # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {casse_attive[i]}")
-            if st.button(f"🔄 Azzerare {casse_attive[i]}", key=f"reset_{i}"):
+            if st.button(f"Azzerare {casse_attive[i]}", key=f"reset_{i}"):
                 conn = sqlite3.connect(DB_FILE)
                 conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
                 conn.commit()
@@ -118,8 +135,6 @@ for i, tab in enumerate(tabs):
                     row_idx = 1
                     for entry in dati_filtrati:
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
-                        
-                        # Logica di raggruppamento
                         if entry['session_id'] != last_session:
                             if entry.get('foto_bytes'):
                                 ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
@@ -127,12 +142,10 @@ for i, tab in enumerate(tabs):
                             ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
                             ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
                             ws.write(row_idx, 4, entry['Data'], current_fmt)
-                        
                         ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
                         ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                        
                         ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
                         row_idx += 1
                 
-                st.download_button(label=f" Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                st.download_button(label=f"Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
