@@ -22,12 +22,6 @@ def init_db():
 
 init_db()
 
-# --- INIZIALIZZAZIONE STATO PER RESET CAMPI ---
-if 'casse_aperte' not in st.session_state: 
-    st.session_state.casse_aperte = ["Cassa 1"]
-if 'reset_key' not in st.session_state:
-    st.session_state.reset_key = 0
-
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -35,6 +29,9 @@ def leggi_dal_db():
     return df.to_dict('records')
 
 # --- INTERFACCIA ---
+if 'casse_aperte' not in st.session_state: 
+    st.session_state.casse_aperte = ["Cassa 1"]
+
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
@@ -46,22 +43,20 @@ tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Usiamo reset_key per forzare il refresh dei campi
-        key_suffix = f"{i}_{st.session_state.reset_key}"
-        
-        num_cassa = st.text_input("Numero Cassa:", key=f"id_{key_suffix}")
-        codice = st.text_input("Codice Articolo:", key=f"cod_{key_suffix}")
-        cliente = st.text_input("Nome Cliente:", key=f"cli_{key_suffix}")
-        foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'], key=f"foto_{key_suffix}")
-        
-        cols = st.columns(4)
-        quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{key_suffix}_{j}") for j in range(4)]
-        
-        dati_totali = leggi_dal_db()
-        totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
-        
-        if st.button(f"Salva Dati {st.session_state.casse_aperte[i]}", key=f"btn_{i}"):
+        # Usiamo un FORM per evitare che i dati vadano persi durante il refresh
+        with st.form(key=f"form_{i}", clear_on_submit=True):
+            num_cassa = st.text_input("Numero Cassa:")
+            codice = st.text_input("Codice Articolo:")
+            cliente = st.text_input("Nome Cliente:")
+            foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
+            
+            cols = st.columns(4)
+            quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
+            
+            submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state.casse_aperte[i]}")
+
+        # Logica di salvataggio dopo il submit
+        if submit_button:
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
             conn = sqlite3.connect(DB_FILE)
@@ -75,17 +70,19 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
+        # Visualizzazione totale
+        dati_totali = leggi_dal_db()
+        totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
+        st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
+
         # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
             if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
-                # 1. Svuota DB
                 conn = sqlite3.connect(DB_FILE)
                 conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
                 conn.commit()
                 conn.close()
-                # 2. Incrementa reset_key per svuotare i campi
-                st.session_state.reset_key += 1
                 st.rerun()
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
@@ -122,4 +119,3 @@ for i, tab in enumerate(tabs):
                         row_idx += 1
                 
                 st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
-                
