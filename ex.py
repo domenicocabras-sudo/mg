@@ -63,7 +63,7 @@ for i, tab in enumerate(tabs):
             for j, q in enumerate(quantita):
                 if q > 0:
                     c.execute("INSERT INTO inventario VALUES (?,?,?,?,?,?,?,?,?)", 
-                              (i, session_timestamp, num_cassa, codice, cliente, 
+                              (i, session_timestamp, num_cassa.upper(), codice.upper(), cliente.upper(), 
                                session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
             conn.commit()
             conn.close()
@@ -72,7 +72,6 @@ for i, tab in enumerate(tabs):
         # --- SIDEBAR E DOWNLOAD ---
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
-            
             if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
                 conn = sqlite3.connect(DB_FILE)
                 conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
@@ -83,32 +82,39 @@ for i, tab in enumerate(tabs):
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
             if dati_filtrati:
-                # Generiamo il nome dinamico PRIMA del download_button
                 ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
-                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx"
+                nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx".upper()
                 
-                # Creazione file in memoria
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
+                    # Stili
+                    header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+                    cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
+                    
                     ws = wb.add_worksheet("Inventario")
-                    ws.set_column('A:G', 15)
-                    ws.write_row(0, 0, ["Foto", "Cassa", "Codice", "Cliente", "Data", "Livello", "Pezzi"])
+                    ws.set_column('A:A', 20)
+                    ws.set_column('B:G', 15)
+                    
+                    headers = ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"]
+                    ws.write_row(0, 0, headers, header_fmt)
                     
                     last_session = None
-                    for r, entry in enumerate(dati_filtrati, 1):
+                    row_idx = 1
+                    for entry in dati_filtrati:
+                        current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                        
                         if entry.get('foto_bytes'):
-                            ws.insert_image(r, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                            ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                        
                         if entry['session_id'] != last_session:
-                            ws.write_row(r, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
+                            ws.write_row(row_idx, 1, [str(entry['Cassa']).upper(), str(entry['Codice']).upper(), str(entry['Cliente']).upper(), entry['Data'], str(entry['Livello']).upper(), entry['Pezzi']], current_fmt)
                         else:
-                            ws.write(r, 5, entry['Livello'])
-                            ws.write(r, 6, entry['Pezzi'])
+                            ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
+                            ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
+                        
+                        ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
-                        ws.set_row(r, 60)
+                        row_idx += 1
                 
-                # Il download button leggerà ora il valore corrente di nome_file
-                st.download_button(
-                    label=f" Scarica: {nome_file}", 
-                    data=output.getvalue(), 
-                    file_name=nome_file
-                )
+                st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
