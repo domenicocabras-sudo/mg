@@ -33,7 +33,7 @@ if 'casse_aperte' not in st.session_state:
     st.session_state.casse_aperte = ["Cassa 1"]
 
 col_titolo, col_btn = st.columns([4, 1])
-with col_titolo: st.title("Inventario Multi-Cassa")
+with col_titolo: st.title("Inventario")
 with col_btn:
     if st.button("➕ Aggiungi Cassa"):
         st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
@@ -108,7 +108,7 @@ for i, tab in enumerate(tabs):
                 
                 # Il download button leggerà ora il valore corrente di nome_file
                 st.download_button(
-                    label=f"📥 Scarica: {nome_file}", 
+                    label=f" Scarica: {nome_file}", 
                     data=output.getvalue(), 
                     file_name=nome_file
                 )
