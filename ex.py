@@ -6,11 +6,12 @@ import xlsxwriter
 import os
 from datetime import datetime
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURAZIONE E INIT ---
 st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
+# Inizializzazione Database
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -22,10 +23,11 @@ def init_db():
 
 init_db()
 
-# --- GESTIONE PERSISTENZA ---
-if 'casse_aperte' not in st.session_state: 
+# --- GESTIONE STATO PERSISTENTE (FONDAMENTALE) ---
+if 'casse_aperte' not in st.session_state:
     st.session_state.casse_aperte = ["Cassa 1"]
 
+# --- FUNZIONI UTILI ---
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -34,27 +36,28 @@ def leggi_dal_db():
 
 # --- INTERFACCIA ---
 col_titolo, col_btn = st.columns([4, 1])
-with col_titolo: st.title("Inventario")
+with col_titolo:
+    st.title("Inventario")
 with col_btn:
     if st.button("➕ Aggiungi Cassa"):
-        st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
+        # Aggiungiamo alla lista nel session_state
+        nuova_cassa = f"Cassa {len(st.session_state.casse_aperte) + 1}"
+        st.session_state.casse_aperte.append(nuova_cassa)
         st.rerun()
 
-# Le tab leggono direttamente dallo stato persistente
+# --- RENDERING TABS ---
+# Leggiamo la lista SEMPRE dal session_state
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Form per mantenere i dati ed evitare il reset durante il refresh
         with st.form(key=f"form_{i}", clear_on_submit=True):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
             cliente = st.text_input("Nome Cliente:")
             foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
-            
             cols = st.columns(4)
             quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
-            
             submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state.casse_aperte[i]}")
 
         if submit_button:
@@ -71,12 +74,12 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
-        # Totale
+        # Metriche
         dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
         st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
 
-        # --- SIDEBAR E DOWNLOAD ---
+        # Sidebar e Download (Inalterato)
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
             if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
@@ -85,24 +88,20 @@ for i, tab in enumerate(tabs):
                 conn.commit()
                 conn.close()
                 st.rerun()
-
-            dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
+            dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             if dati_filtrati:
                 ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
                 nome_file = f"Report_{st.session_state.casse_aperte[i]}_{ultimo_codice}.xlsx".upper()
-                
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
                     header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
                     cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
-                    
                     ws = wb.add_worksheet("Inventario")
                     ws.set_column('A:A', 20)
                     ws.set_column('B:G', 15)
                     ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
-                    
                     row_idx = 1
                     for entry in dati_filtrati:
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
@@ -111,5 +110,4 @@ for i, tab in enumerate(tabs):
                         ws.write_row(row_idx, 1, [str(entry['Cassa']).upper(), str(entry['Codice']).upper(), str(entry['Cliente']).upper(), entry['Data'], str(entry['Livello']).upper(), entry['Pezzi']], current_fmt)
                         ws.set_row(row_idx, 60)
                         row_idx += 1
-                
                 st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
