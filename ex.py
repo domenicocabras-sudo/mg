@@ -11,6 +11,7 @@ st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
+# --- INIZIALIZZAZIONE ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -22,7 +23,7 @@ def init_db():
 
 init_db()
 
-# --- INIZIALIZZAZIONE STATO PERSISTENTE ---
+# Gestione persistenza Tab
 if 'casse_aperte' not in st.session_state: 
     st.session_state.casse_aperte = ["Cassa 1"]
 
@@ -36,20 +37,16 @@ def leggi_dal_db():
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
-    # Aggiunta cassa: modifica direttamente lo stato e forza il ricalcolo
     if st.button("➕ Aggiungi Cassa"):
-        nuovo_nome = f"Cassa {len(st.session_state.casse_aperte) + 1}"
-        st.session_state.casse_aperte.append(nuovo_nome)
+        st.session_state.casse_aperte.append(f"Cassa {len(st.session_state.casse_aperte) + 1}")
         st.rerun()
 
-# --- RENDERING TABS ---
-# Usiamo la lista dallo stato. Poiché lo stato è persistente, le tab non spariranno.
 tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Usiamo un form unico per ogni cassa
-        with st.form(key=f"form_{i}"):
+        # Form per mantenere i campi durante l'interazione
+        with st.form(key=f"form_{i}", clear_on_submit=True):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
             cliente = st.text_input("Nome Cliente:")
@@ -74,7 +71,7 @@ for i, tab in enumerate(tabs):
             conn.close()
             st.rerun()
 
-        # Visualizzazione totale
+        # Metriche
         dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
         st.metric(f"Totale pezzi salvati ({st.session_state.casse_aperte[i]})", totale_archiviato)
@@ -97,6 +94,7 @@ for i, tab in enumerate(tabs):
                 
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
+                    # Formattazione professionale
                     header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
                     cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
@@ -110,16 +108,20 @@ for i, tab in enumerate(tabs):
                     row_idx = 1
                     for entry in dati_filtrati:
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                        
                         if entry.get('foto_bytes'):
                             ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
                         
-                        if entry['session_id'] != last_session:
-                            ws.write_row(row_idx, 1, [str(entry['Cassa']).upper(), str(entry['Codice']).upper(), str(entry['Cliente']).upper(), entry['Data'], str(entry['Livello']).upper(), entry['Pezzi']], current_fmt)
-                        else:
-                            ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
-                            ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
+                        ws.write_row(row_idx, 1, [
+                            str(entry['Cassa']).upper(), 
+                            str(entry['Codice']).upper(), 
+                            str(entry['Cliente']).upper(), 
+                            entry['Data'], 
+                            str(entry['Livello']).upper(), 
+                            entry['Pezzi']
+                        ], current_fmt)
+                        
                         ws.set_row(row_idx, 60)
-                        last_session = entry['session_id']
                         row_idx += 1
                 
                 st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
