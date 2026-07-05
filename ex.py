@@ -22,6 +22,12 @@ def init_db():
 
 init_db()
 
+# --- INIZIALIZZAZIONE STATO PER RESET CAMPI ---
+if 'casse_aperte' not in st.session_state: 
+    st.session_state.casse_aperte = ["Cassa 1"]
+if 'reset_key' not in st.session_state:
+    st.session_state.reset_key = 0
+
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -29,9 +35,6 @@ def leggi_dal_db():
     return df.to_dict('records')
 
 # --- INTERFACCIA ---
-if 'casse_aperte' not in st.session_state: 
-    st.session_state.casse_aperte = ["Cassa 1"]
-
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
@@ -43,13 +46,16 @@ tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        num_cassa = st.text_input("Numero Cassa:", key=f"id_{i}")
-        codice = st.text_input("Codice Articolo:", key=f"cod_{i}")
-        cliente = st.text_input("Nome Cliente:", key=f"cli_{i}")
-        foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'], key=f"foto_{i}")
+        # Usiamo reset_key per forzare il refresh dei campi
+        key_suffix = f"{i}_{st.session_state.reset_key}"
+        
+        num_cassa = st.text_input("Numero Cassa:", key=f"id_{key_suffix}")
+        codice = st.text_input("Codice Articolo:", key=f"cod_{key_suffix}")
+        cliente = st.text_input("Nome Cliente:", key=f"cli_{key_suffix}")
+        foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'], key=f"foto_{key_suffix}")
         
         cols = st.columns(4)
-        quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
+        quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{key_suffix}_{j}") for j in range(4)]
         
         dati_totali = leggi_dal_db()
         totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
@@ -73,10 +79,13 @@ for i, tab in enumerate(tabs):
         with st.sidebar:
             st.header(f"Archivio: {st.session_state.casse_aperte[i]}")
             if st.button(f"🔄 Azzerare {st.session_state.casse_aperte[i]}", key=f"reset_{i}"):
+                # 1. Svuota DB
                 conn = sqlite3.connect(DB_FILE)
                 conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
                 conn.commit()
                 conn.close()
+                # 2. Incrementa reset_key per svuotare i campi
+                st.session_state.reset_key += 1
                 st.rerun()
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
@@ -87,7 +96,6 @@ for i, tab in enumerate(tabs):
                 
                 output = io.BytesIO()
                 with xlsxwriter.Workbook(output) as wb:
-                    # Stili
                     header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
                     cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
@@ -95,15 +103,12 @@ for i, tab in enumerate(tabs):
                     ws = wb.add_worksheet("Inventario")
                     ws.set_column('A:A', 20)
                     ws.set_column('B:G', 15)
-                    
-                    headers = ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"]
-                    ws.write_row(0, 0, headers, header_fmt)
+                    ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
                     
                     last_session = None
                     row_idx = 1
                     for entry in dati_filtrati:
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
-                        
                         if entry.get('foto_bytes'):
                             ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
                         
@@ -112,9 +117,9 @@ for i, tab in enumerate(tabs):
                         else:
                             ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
                             ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                        
                         ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
                         row_idx += 1
                 
                 st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                
