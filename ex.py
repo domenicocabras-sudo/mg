@@ -22,6 +22,10 @@ def init_db():
 
 init_db()
 
+# --- INIZIALIZZAZIONE STATO ---
+if 'casse_aperte' not in st.session_state: 
+    st.session_state.casse_aperte = ["Cassa 1"]
+
 def leggi_dal_db():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT * FROM inventario", conn)
@@ -29,9 +33,6 @@ def leggi_dal_db():
     return df.to_dict('records')
 
 # --- INTERFACCIA ---
-if 'casse_aperte' not in st.session_state: 
-    st.session_state.casse_aperte = ["Cassa 1"]
-
 col_titolo, col_btn = st.columns([4, 1])
 with col_titolo: st.title("Inventario")
 with col_btn:
@@ -43,8 +44,8 @@ tabs = st.tabs(st.session_state.casse_aperte)
 
 for i, tab in enumerate(tabs):
     with tab:
-        # Usiamo un FORM per evitare che i dati vadano persi durante il refresh
-        with st.form(key=f"form_{i}", clear_on_submit=True):
+        # Usiamo il form per mantenere i dati durante il refresh
+        with st.form(key=f"form_{i}"):
             num_cassa = st.text_input("Numero Cassa:")
             codice = st.text_input("Codice Articolo:")
             cliente = st.text_input("Nome Cliente:")
@@ -55,7 +56,6 @@ for i, tab in enumerate(tabs):
             
             submit_button = st.form_submit_button(label=f"Salva Dati {st.session_state.casse_aperte[i]}")
 
-        # Logica di salvataggio dopo il submit
         if submit_button:
             session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             foto_bytes = foto_upload.getvalue() if foto_upload else None
