@@ -135,4 +135,4 @@ for i, tab in enumerate(tabs):
                         last_session = entry['session_id']
                         row_idx += 1
                 
-                st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                st.download_button(label=f" Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
