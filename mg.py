@@ -155,7 +155,9 @@ else:
                                 ws.write(row, 1, r_dati['Data'], fmt)
                                 ws.write(row, 2, r_dati['Codice'], fmt)
                                 ws.write(row, 3, r_dati['Cliente'], fmt)
-                                ws.write(row, 4, r_dati['Totale_Pezzi'], fmt)
+                                # Correzione qui: forziamo il valore a int per evitare TypeError
+                                valore_tot = int(r_dati.get('Totale_Pezzi') or 0)
+                                ws.write(row, 4, valore_tot, fmt)
                                 ws.set_row(row, 60)
                                 row += 1
                     
