@@ -4,18 +4,18 @@ import sqlite3
 import io
 import xlsxwriter
 import os
+import qrcode
 from datetime import datetime
 
 # --- CONFIGURAZIONE GLOBALE ---
 st.set_page_config(layout="wide")
 
-# Stato di navigazione
 if 'pagina' not in st.session_state:
     st.session_state.pagina = 'home'
 
 # --- LANDING PAGE ---
 def pagina_home():
-    st.title("Benvenuti nel Sistema Gestionale")
+    st.title("📦 Sistema Gestionale")
     st.markdown("---")
     st.write("### Gestione Inventario")
     st.write("Clicca il pulsante qui sotto per accedere al modulo di inserimento dati e archiviazione.")
@@ -24,7 +24,7 @@ def pagina_home():
         st.session_state.pagina = 'inventario'
         st.rerun()
 
-# --- CODICE INVENTARIO (INTATTO) ---
+# --- CODICE INVENTARIO ---
 def pagina_inventario():
     if st.button("⬅️ Torna alla Home"):
         st.session_state.pagina = 'home'
@@ -48,7 +48,6 @@ def pagina_inventario():
 
     init_db()
 
-    # --- FUNZIONI DATABASE ---
     def get_casse():
         conn = sqlite3.connect(DB_FILE)
         df = pd.read_sql_query("SELECT nome_cassa FROM configurazione", conn)
@@ -68,7 +67,6 @@ def pagina_inventario():
         conn.close()
         return df.to_dict('records')
 
-    # --- INTERFACCIA ---
     col_titolo, col_btn = st.columns([4, 1])
     with col_titolo: st.title("Inventario")
     with col_btn:
@@ -102,14 +100,26 @@ def pagina_inventario():
                                    session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
                 conn.commit()
                 conn.close()
+                
+                # Generazione QR Code
+                dati_qr = f"Cassa: {num_cassa.upper()} | Codice: {codice.upper()} | Cliente: {cliente.upper()}"
+                qr = qrcode.make(dati_qr)
+                qr_io = io.BytesIO()
+                qr.save(qr_io, format='PNG')
+                st.session_state[f"last_qr_{i}"] = qr_io.getvalue()
                 st.rerun()
 
-            # Metriche
+            # Mostra QR Code se presente
+            if f"last_qr_{i}" in st.session_state:
+                st.info("Ultimo articolo aggiunto:")
+                st.image(st.session_state[f"last_qr_{i}"], width=150)
+                st.download_button("Scarica QR", st.session_state[f"last_qr_{i}"], f"QR_{casse_attive[i]}.png")
+
             dati_totali = leggi_dal_db()
             totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
             st.metric(f"Totale pezzi salvati ({casse_attive[i]})", totale_archiviato)
 
-            # --- SIDEBAR E DOWNLOAD ---
+            # Sidebar e Download Excel
             with st.sidebar:
                 st.header(f"Archivio: {casse_attive[i]}")
                 if st.button(f"🔄 Azzerare {casse_attive[i]}", key=f"reset_{i}"):
@@ -117,43 +127,19 @@ def pagina_inventario():
                     conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
                     conn.commit()
                     conn.close()
+                    if f"last_qr_{i}" in st.session_state: del st.session_state[f"last_qr_{i}"]
                     st.rerun()
 
                 dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
-                
                 if dati_filtrati:
                     ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
                     nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
-                    
                     output = io.BytesIO()
                     with xlsxwriter.Workbook(output) as wb:
-                        header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
-                        cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-                        alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
-                        
                         ws = wb.add_worksheet("Inventario")
-                        ws.set_column('A:A', 20)
-                        ws.set_column('B:G', 15)
-                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
-                        
-                        last_session = None
-                        row_idx = 1
-                        for entry in dati_filtrati:
-                            current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
-                            if entry['session_id'] != last_session:
-                                if entry.get('foto_bytes'):
-                                    ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
-                                ws.write(row_idx, 1, str(entry['Cassa']).upper(), current_fmt)
-                                ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
-                                ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
-                                ws.write(row_idx, 4, entry['Data'], current_fmt)
-                            
-                            ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
-                            ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                            ws.set_row(row_idx, 60)
-                            last_session = entry['session_id']
-                            row_idx += 1
-                    
+                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"])
+                        for row, entry in enumerate(dati_filtrati, 1):
+                            ws.write_row(row, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
                     st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
 
 # --- CONTROLLER ---
