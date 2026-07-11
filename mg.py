@@ -1,31 +1,31 @@
 import streamlit as st
-import qrcode
+import pandas as pd
+import sqlite3
 import io
+import xlsxwriter
+import os
+import qrcode
+from datetime import datetime
 
-# --- CONFIGURAZIONE NAVIGAZIONE ---
+# --- CONFIGURAZIONE ---
 st.set_page_config(layout="wide")
+
+# Inizializzazione per la Landing Page
 if 'pagina' not in st.session_state:
     st.session_state.pagina = 'home'
 
-# --- LANDING PAGE ---
-def mostra_home():
-    st.title("Benvenuto nel Gestionale")
+# --- ROUTER ---
+if st.session_state.pagina == 'home':
+    st.title("Benvenuto nel Sistema Inventario")
     if st.button("🚀 Accedi all'Inventario"):
         st.session_state.pagina = 'inventario'
         st.rerun()
 
-# --- IL TUO CODICE ORIGINALE (INCAPSULATO) ---
-def mostra_inventario():
+else:
+    # --- CODICE ORIGINALE INIZIA QUI ---
     if st.button("⬅️ Torna alla Home"):
         st.session_state.pagina = 'home'
         st.rerun()
-
-    # --- INIZIO CODICE ORIGINALE ---
-    import pandas as pd
-    import sqlite3
-    import xlsxwriter
-    import os
-    from datetime import datetime
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DB_FILE = os.path.join(BASE_DIR, "inventario.db")
@@ -98,13 +98,15 @@ def mostra_inventario():
                 conn.commit()
                 conn.close()
                 
-                # AGGIUNTA QR CODE:
-                dati_qr = f"Cassa: {num_cassa}|Cod: {codice}|Cli: {cliente}"
+                # --- LOGICA QR CODE AGGIUNTA ---
+                st.success("Dati salvati!")
+                dati_qr = f"Cassa: {num_cassa}|Art: {codice}|Cli: {cliente}"
                 qr = qrcode.make(dati_qr)
                 qr_io = io.BytesIO()
                 qr.save(qr_io, format='PNG')
                 st.image(qr_io.getvalue(), caption="QR Code Articolo", width=150)
-                st.download_button("Scarica QR", qr_io.getvalue(), "codice.png")
+                st.download_button("Scarica QR", qr_io.getvalue(), "qrcode.png")
+                # -------------------------------
                 
                 st.rerun()
 
@@ -123,11 +125,31 @@ def mostra_inventario():
 
                 dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
                 if dati_filtrati:
-                    # ... [Il resto del tuo codice originale per Excel rimane identico qui] ...
-                    st.success("Dati pronti per il download")
-
-# --- ROUTER ---
-if st.session_state.pagina == 'home':
-    mostra_home()
-else:
-    mostra_inventario()
+                    ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
+                    nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
+                    output = io.BytesIO()
+                    with xlsxwriter.Workbook(output) as wb:
+                        header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+                        cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                        alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
+                        ws = wb.add_worksheet("Inventario")
+                        ws.set_column('A:A', 20)
+                        ws.set_column('B:G', 15)
+                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
+                        last_session = None
+                        row_idx = 1
+                        for entry in dati_filtrati:
+                            current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                            if entry['session_id'] != last_session:
+                                if entry.get('foto_bytes'):
+                                    ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                                ws.write(row_idx, 1, str(entry['Cassa']).upper(), current_fmt)
+                                ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
+                                ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
+                                ws.write(row_idx, 4, entry['Data'], current_fmt)
+                            ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
+                            ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
+                            ws.set_row(row_idx, 60)
+                            last_session = entry['session_id']
+                            row_idx += 1
+                    st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
