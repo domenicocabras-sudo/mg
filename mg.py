@@ -12,8 +12,10 @@ st.set_page_config(layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "inventario.db")
 
-if 'pagina' not in st.session_state: st.session_state.pagina = 'home'
+if 'pagina' not in st.session_state: 
+    st.session_state.pagina = 'home'
 
+# --- FUNZIONI DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -27,8 +29,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()
-
 def get_casse():
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query("SELECT nome_cassa FROM configurazione", conn)
@@ -37,8 +37,7 @@ def get_casse():
 
 def add_cassa():
     conn = sqlite3.connect(DB_FILE)
-    nuovo_nome = f"Cassa {len(get_casse()) + 1}"
-    conn.execute("INSERT INTO configurazione VALUES (?)", (nuovo_nome,))
+    conn.execute("INSERT INTO configurazione VALUES (?)", (f"Cassa {len(get_casse()) + 1}",))
     conn.commit()
     conn.close()
 
@@ -48,14 +47,16 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
+init_db()
+
 # --- ROUTER ---
 if st.session_state.pagina == 'home':
     st.title("📦 Sistema Gestionale")
     if st.button("🚀 Accedi all'Inventario"):
         st.session_state.pagina = 'inventario'
         st.rerun()
+
 else:
-    # --- INTERFACCIA ORIGINALE ---
     if st.button("⬅️ Torna alla Home"):
         st.session_state.pagina = 'home'
         st.rerun()
@@ -72,6 +73,7 @@ else:
 
     for i, tab in enumerate(tabs):
         with tab:
+            # --- FORM DI INSERIMENTO ---
             with st.form(key=f"form_{i}", clear_on_submit=True):
                 num_cassa = st.text_input("Numero Cassa:")
                 codice = st.text_input("Codice Articolo:")
@@ -94,21 +96,21 @@ else:
                 conn.commit()
                 conn.close()
                 
-                # --- GENERAZIONE QR (AGGIUNTA) ---
+                # --- QR CODE ---
                 dati_qr = f"Cassa:{num_cassa}|Cod:{codice}|Cli:{cliente}"
                 qr = qrcode.make(dati_qr)
                 qr_buf = io.BytesIO()
                 qr.save(qr_buf, format="PNG")
-                st.image(qr_buf.getvalue(), width=150)
+                st.image(qr_buf.getvalue(), caption="QR Code Articolo", width=150)
                 st.download_button("Scarica QR", qr_buf.getvalue(), "qr.png")
-                # ---------------------------------
-                
                 st.rerun()
 
+            # --- METRICHE ---
             dati_totali = leggi_dal_db()
             totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
             st.metric(f"Totale pezzi salvati ({casse_attive[i]})", totale_archiviato)
 
+            # --- SIDEBAR E EXPORT ---
             with st.sidebar:
                 st.header(f"Archivio: {casse_attive[i]}")
                 if st.button(f"🔄 Azzerare {casse_attive[i]}", key=f"reset_{i}"):
@@ -123,6 +125,7 @@ else:
                     ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
                     nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
                     output = io.BytesIO()
+                    
                     with xlsxwriter.Workbook(output) as wb:
                         header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
                         cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
@@ -131,6 +134,7 @@ else:
                         ws.set_column('A:A', 20)
                         ws.set_column('B:G', 15)
                         ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
+                        
                         last_session = None
                         row_idx = 1
                         for entry in dati_filtrati:
@@ -147,4 +151,5 @@ else:
                             ws.set_row(row_idx, 60)
                             last_session = entry['session_id']
                             row_idx += 1
+                    
                     st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
