@@ -73,14 +73,13 @@ else:
 
     for i, tab in enumerate(tabs):
         with tab:
-            # --- FORM DI INSERIMENTO ---
             with st.form(key=f"form_{i}", clear_on_submit=True):
-                num_cassa = st.text_input("Numero Cassa:")
-                codice = st.text_input("Codice Articolo:")
-                cliente = st.text_input("Nome Cliente:")
-                foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
+                num_cassa = st.text_input("Numero Cassa:", key=f"c_{i}")
+                codice = st.text_input("Codice Articolo:", key=f"cod_{i}")
+                cliente = st.text_input("Nome Cliente:", key=f"cli_{i}")
+                foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'], key=f"f_{i}")
                 cols = st.columns(4)
-                quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
+                quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
                 submit_button = st.form_submit_button(label=f"Salva Dati {casse_attive[i]}")
 
             if submit_button:
@@ -96,21 +95,21 @@ else:
                 conn.commit()
                 conn.close()
                 
-                # --- QR CODE ---
+                # QR CODE
                 dati_qr = f"Cassa:{num_cassa}|Cod:{codice}|Cli:{cliente}"
                 qr = qrcode.make(dati_qr)
                 qr_buf = io.BytesIO()
                 qr.save(qr_buf, format="PNG")
-                st.image(qr_buf.getvalue(), caption="QR Code Articolo", width=150)
+                st.image(qr_buf.getvalue(), caption="QR Code Generato", width=150)
                 st.download_button("Scarica QR", qr_buf.getvalue(), "qr.png")
                 st.rerun()
 
-            # --- METRICHE ---
+            # METRICHE
             dati_totali = leggi_dal_db()
             totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
             st.metric(f"Totale pezzi salvati ({casse_attive[i]})", totale_archiviato)
 
-            # --- SIDEBAR E EXPORT ---
+            # SIDEBAR E EXPORT
             with st.sidebar:
                 st.header(f"Archivio: {casse_attive[i]}")
                 if st.button(f"🔄 Azzerare {casse_attive[i]}", key=f"reset_{i}"):
@@ -127,29 +126,28 @@ else:
                     output = io.BytesIO()
                     
                     with xlsxwriter.Workbook(output) as wb:
-                        header_fmt = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
-                        cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-                        alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
+                        hdr = wb.add_format({'bold': True, 'bg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+                        fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                        alt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
                         ws = wb.add_worksheet("Inventario")
                         ws.set_column('A:A', 20)
-                        ws.set_column('B:G', 15)
-                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
+                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], hdr)
                         
                         last_session = None
-                        row_idx = 1
+                        row = 1
                         for entry in dati_filtrati:
-                            current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                            f = alt if row % 2 == 0 else fmt
                             if entry['session_id'] != last_session:
                                 if entry.get('foto_bytes'):
-                                    ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
-                                ws.write(row_idx, 1, str(entry['Cassa']).upper(), current_fmt)
-                                ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
-                                ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
-                                ws.write(row_idx, 4, entry['Data'], current_fmt)
-                            ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
-                            ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                            ws.set_row(row_idx, 60)
+                                    ws.insert_image(row, 0, 'f.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
+                                ws.write(row, 1, str(entry['Cassa']), f)
+                                ws.write(row, 2, str(entry['Codice']), f)
+                                ws.write(row, 3, str(entry['Cliente']), f)
+                                ws.write(row, 4, str(entry['Data']), f)
+                            ws.write(row, 5, str(entry['Livello']), f)
+                            ws.write(row, 6, entry['Pezzi'], f)
+                            ws.set_row(row, 60)
                             last_session = entry['session_id']
-                            row_idx += 1
+                            row += 1
                     
-                    st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                    st.download_button(f"📥 Scarica {nome_file}", output.getvalue(), file_name=nome_file)
