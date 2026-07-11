@@ -17,10 +17,8 @@ if 'pagina' not in st.session_state:
 def pagina_home():
     st.title("📦 Sistema Gestionale")
     st.markdown("---")
-    st.write("### Gestione Inventario")
-    st.write("Clicca il pulsante qui sotto per accedere al modulo di inserimento dati e archiviazione.")
-    
-    if st.button("🚀 Vai all'Inventario"):
+    st.write("### Benvenuto nel portale di gestione")
+    if st.button("🚀 Accedi all'Inventario"):
         st.session_state.pagina = 'inventario'
         st.rerun()
 
@@ -48,6 +46,7 @@ def pagina_inventario():
 
     init_db()
 
+    # --- FUNZIONI ---
     def get_casse():
         conn = sqlite3.connect(DB_FILE)
         df = pd.read_sql_query("SELECT nome_cassa FROM configurazione", conn)
@@ -61,14 +60,9 @@ def pagina_inventario():
         conn.commit()
         conn.close()
 
-    def leggi_dal_db():
-        conn = sqlite3.connect(DB_FILE)
-        df = pd.read_sql_query("SELECT * FROM inventario", conn)
-        conn.close()
-        return df.to_dict('records')
-
+    # --- INTERFACCIA ---
     col_titolo, col_btn = st.columns([4, 1])
-    with col_titolo: st.title("Inventario")
+    with col_titolo: st.title("Gestione Inventario")
     with col_btn:
         if st.button("➕ Aggiungi Cassa"):
             add_cassa()
@@ -80,69 +74,37 @@ def pagina_inventario():
     for i, tab in enumerate(tabs):
         with tab:
             with st.form(key=f"form_{i}", clear_on_submit=True):
-                num_cassa = st.text_input("Numero Cassa:")
-                codice = st.text_input("Codice Articolo:")
-                cliente = st.text_input("Nome Cliente:")
-                foto_upload = st.file_uploader("Carica Foto", type=['jpg', 'png'])
+                num_cassa = st.text_input("Numero Cassa:", key=f"cassa_{i}")
+                codice = st.text_input("Codice Articolo:", key=f"cod_{i}")
+                cliente = st.text_input("Nome Cliente:", key=f"clie_{i}")
                 cols = st.columns(4)
-                quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0) for j in range(4)]
-                submit_button = st.form_submit_button(label=f"Salva Dati {casse_attive[i]}")
+                quantita = [cols[j].number_input(f"Q L{j+1}", min_value=0, key=f"q_{i}_{j}") for j in range(4)]
+                submit_button = st.form_submit_button(label="Salva Dati")
 
             if submit_button:
+                # 1. Salvataggio nel DB
                 session_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                foto_bytes = foto_upload.getvalue() if foto_upload else None
                 conn = sqlite3.connect(DB_FILE)
                 c = conn.cursor()
                 for j, q in enumerate(quantita):
                     if q > 0:
                         c.execute("INSERT INTO inventario VALUES (?,?,?,?,?,?,?,?,?)", 
                                   (i, session_timestamp, num_cassa.upper(), codice.upper(), cliente.upper(), 
-                                   session_timestamp, f"L{j+1}", q, foto_bytes if j == 0 else None))
+                                   session_timestamp, f"L{j+1}", q, None))
                 conn.commit()
                 conn.close()
                 
-                # Generazione QR Code
-                dati_qr = f"Cassa: {num_cassa.upper()} | Codice: {codice.upper()} | Cliente: {cliente.upper()}"
+                # 2. Generazione QR Code al volo
+                dati_qr = f"Cassa:{num_cassa}|Art:{codice}|Cli:{cliente}"
                 qr = qrcode.make(dati_qr)
-                qr_io = io.BytesIO()
-                qr.save(qr_io, format='PNG')
-                st.session_state[f"last_qr_{i}"] = qr_io.getvalue()
-                st.rerun()
+                buffer = io.BytesIO()
+                qr.save(buffer, format="PNG")
+                
+                st.success("Dati salvati!")
+                st.image(buffer.getvalue(), caption="QR Code Articolo", width=150)
+                st.download_button("Scarica QR", buffer.getvalue(), "qr_codice.png", "image/png")
 
-            # Mostra QR Code se presente
-            if f"last_qr_{i}" in st.session_state:
-                st.info("Ultimo articolo aggiunto:")
-                st.image(st.session_state[f"last_qr_{i}"], width=150)
-                st.download_button("Scarica QR", st.session_state[f"last_qr_{i}"], f"QR_{casse_attive[i]}.png")
-
-            dati_totali = leggi_dal_db()
-            totale_archiviato = sum(item['Pezzi'] for item in dati_totali if item.get('tab_index') == i)
-            st.metric(f"Totale pezzi salvati ({casse_attive[i]})", totale_archiviato)
-
-            # Sidebar e Download Excel
-            with st.sidebar:
-                st.header(f"Archivio: {casse_attive[i]}")
-                if st.button(f"🔄 Azzerare {casse_attive[i]}", key=f"reset_{i}"):
-                    conn = sqlite3.connect(DB_FILE)
-                    conn.execute("DELETE FROM inventario WHERE tab_index = ?", (i,))
-                    conn.commit()
-                    conn.close()
-                    if f"last_qr_{i}" in st.session_state: del st.session_state[f"last_qr_{i}"]
-                    st.rerun()
-
-                dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
-                if dati_filtrati:
-                    ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
-                    nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
-                    output = io.BytesIO()
-                    with xlsxwriter.Workbook(output) as wb:
-                        ws = wb.add_worksheet("Inventario")
-                        ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"])
-                        for row, entry in enumerate(dati_filtrati, 1):
-                            ws.write_row(row, 1, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Data'], entry['Livello'], entry['Pezzi']])
-                    st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
-
-# --- CONTROLLER ---
+# --- ROUTER ---
 if st.session_state.pagina == 'home':
     pagina_home()
 else:
