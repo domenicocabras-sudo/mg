@@ -9,7 +9,6 @@ from datetime import datetime
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Gestione Magazzino", layout="wide")
 
-# Inizializzazione navigazione
 if 'pagina' not in st.session_state:
     st.session_state.pagina = 'home'
 
@@ -49,13 +48,13 @@ def leggi_dal_db():
     conn.close()
     return df.to_dict('records')
 
-# --- LOGICA PAGINE ---
+# --- PAGINE ---
 
 def pagina_home():
-    st.title("Benvenuto nel Sistema di Gestione Inventario")
-    st.write("### Organizza il tuo magazzino in modo efficiente.")
-    st.info("Questa è la tua landing page. Clicca il pulsante qui sotto per accedere all'area di gestione.")
-    
+    st.title("📦 Sistema Gestione Inventario")
+    st.write("---")
+    st.markdown("### Benvenuto")
+    st.write("Questa applicazione permette di gestire l'inventario dei magazzini in modo rapido.")
     if st.button("🚀 Accedi all'Inventario"):
         st.session_state.pagina = 'inventario'
         st.rerun()
@@ -101,14 +100,22 @@ def pagina_inventario():
                 conn.close()
                 st.rerun()
 
-            # --- SIDEBAR E DOWNLOAD ---
+            # Esportazione
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             if dati_filtrati:
-                # ... (Logica di esportazione Excel invariata) ...
-                st.success(f"Dati presenti per {casse_attive[i]}")
+                ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
+                nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
+                output = io.BytesIO()
+                with xlsxwriter.Workbook(output) as wb:
+                    ws = wb.add_worksheet("Inventario")
+                    ws.write_row(0, 0, ["CASSA", "CODICE", "CLIENTE", "LIVELLO", "PEZZI"])
+                    for idx, entry in enumerate(dati_filtrati):
+                        ws.write_row(idx + 1, 0, [entry['Cassa'], entry['Codice'], entry['Cliente'], entry['Livello'], entry['Pezzi']])
+                
+                st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
 
 # --- ROUTER ---
 if st.session_state.pagina == 'home':
     pagina_home()
 else:
-    pagina_inventario()ame=nome_file)
+    pagina_inventario()
