@@ -6,4 +6,4 @@ pymupdf
 frontend
 opencv-python-headless
 xlsxwriter
-
+qrcode
