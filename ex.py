@@ -99,7 +99,6 @@ for i, tab in enumerate(tabs):
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
-            # Calcolo Totali per Sessione
             df_temp = pd.DataFrame(dati_filtrati)
             if not df_temp.empty:
                 df_temp['Pezzi Totali'] = df_temp.groupby('session_id')['Pezzi'].transform('sum')
@@ -131,10 +130,14 @@ for i, tab in enumerate(tabs):
                             ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
                             ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
                             ws.write(row_idx, 4, entry['Data'], current_fmt)
+                            # Scriviamo il totale solo alla prima riga della sessione
+                            ws.write(row_idx, 7, entry['Pezzi Totali'], current_fmt)
+                        else:
+                            # Nelle righe successive della stessa sessione, lasciamo vuoto
+                            ws.write(row_idx, 7, "", current_fmt)
                         
                         ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
                         ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                        ws.write(row_idx, 7, entry['Pezzi Totali'], current_fmt)
                         
                         ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
