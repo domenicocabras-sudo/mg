@@ -131,7 +131,7 @@ for i, tab in enumerate(tabs):
                             ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
                             ws.write(row_idx, 4, entry['Data'], current_fmt)
                             # Scriviamo il totale solo alla prima riga della sessione
-                            ws.write(row_idx, 7, entry['Pezzi Totali'], current_fmt)
+                            ws.write(row_idx, 7, entry['Pezzi Totali'],green_to_use)
                         else:
                             # Nelle righe successive della stessa sessione, lasciamo vuoto
                             ws.write(row_idx, 7, "", current_fmt)
