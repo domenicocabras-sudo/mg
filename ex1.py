@@ -3,6 +3,7 @@ import pandas as pd
 import sqlite3
 import io
 import xlsxwriter
+import qrcode
 import os
 from datetime import datetime
 
@@ -136,3 +137,26 @@ for i, tab in enumerate(tabs):
                         row_idx += 1
                 
                 st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                # --- SEZIONE GENERAZIONE QR CODE ---
+        with st.expander("Genera QR Code per Etichetta"):
+            # Genera stringa con i dati attuali
+            dati_per_qr = f"Data: {datetime.now().strftime('%Y-%m-%d')}, Cod: {codice.upper()}, Cliente: {cliente.upper()}"
+            
+            # Creazione QR Code
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(dati_per_qr)
+            qr.make(fit=True)
+            img_qr = qr.make_image(fill_color="black", back_color="white")
+            
+            # Conversione in byte per visualizzazione in Streamlit
+            buf = io.BytesIO()
+            img_qr.save(buf, format='PNG')
+            st.image(buf.getvalue(), caption="QR Code Articolo", width=200)
+            
+            # Bottone per scaricare il QR Code come immagine
+            st.download_button(
+                label="📥 Scarica QR Code",
+                data=buf.getvalue(),
+                file_name=f"QR_{codice.upper()}.png",
+                mime="image/png"
+            )
