@@ -99,7 +99,6 @@ for i, tab in enumerate(tabs):
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
-            # Calcolo Totali per Sessione
             df_temp = pd.DataFrame(dati_filtrati)
             if not df_temp.empty:
                 df_temp['Pezzi Totali'] = df_temp.groupby('session_id')['Pezzi'].transform('sum')
@@ -114,6 +113,10 @@ for i, tab in enumerate(tabs):
                     cell_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#F2F2F2'})
                     
+                    # Formati Verde
+                    green_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_color': 'green', 'bold': True})
+                    green_alt_fmt = wb.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1, 'font_color': 'green', 'bold': True, 'bg_color': '#F2F2F2'})
+                    
                     ws = wb.add_worksheet("Inventario")
                     ws.set_column('A:A', 20)
                     ws.set_column('B:H', 15)
@@ -123,6 +126,7 @@ for i, tab in enumerate(tabs):
                     row_idx = 1
                     for _, entry in df_temp.iterrows():
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
+                        green_to_use = green_alt_fmt if row_idx % 2 == 0 else green_fmt
                         
                         if entry['session_id'] != last_session:
                             if entry.get('foto_bytes'):
@@ -131,10 +135,12 @@ for i, tab in enumerate(tabs):
                             ws.write(row_idx, 2, str(entry['Codice']).upper(), current_fmt)
                             ws.write(row_idx, 3, str(entry['Cliente']).upper(), current_fmt)
                             ws.write(row_idx, 4, entry['Data'], current_fmt)
+                            ws.write(row_idx, 7, entry['Pezzi Totali'], green_to_use)
+                        else:
+                            ws.write(row_idx, 7, "", current_fmt)
                         
                         ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
                         ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
-                        ws.write(row_idx, 7, entry['Pezzi Totali'], current_fmt)
                         
                         ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
