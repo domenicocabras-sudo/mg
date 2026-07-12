@@ -136,7 +136,7 @@ for i, tab in enumerate(tabs):
                         last_session = entry['session_id']
                         row_idx += 1
                 
-                st.download_button(label=f"📥 Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
+                st.download_button(label=f" Scarica {nome_file}", data=output.getvalue(), file_name=nome_file)
                 # --- SEZIONE GENERAZIONE QR CODE ---
         with st.expander("Genera QR Code per Etichetta"):
             # Genera stringa con i dati attuali
@@ -155,7 +155,7 @@ for i, tab in enumerate(tabs):
             
             # Bottone per scaricare il QR Code come immagine
             st.download_button(
-                label="📥 Scarica QR Code",
+                label=" Scarica QR Code",
                 data=buf.getvalue(),
                 file_name=f"QR_{codice.upper()}.png",
                 mime="image/png"
