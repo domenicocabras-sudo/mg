@@ -99,8 +99,13 @@ for i, tab in enumerate(tabs):
 
             dati_filtrati = [d for d in leggi_dal_db() if d.get('tab_index') == i]
             
-            if dati_filtrati:
-                ultimo_codice = dati_filtrati[-1].get('Codice') or "SenzaCodice"
+            # Calcolo Totali per Sessione
+            df_temp = pd.DataFrame(dati_filtrati)
+            if not df_temp.empty:
+                df_temp['Pezzi Totali'] = df_temp.groupby('session_id')['Pezzi'].transform('sum')
+            
+            if not df_temp.empty:
+                ultimo_codice = df_temp.iloc[-1]['Codice'] or "SenzaCodice"
                 nome_file = f"Report_{casse_attive[i]}_{ultimo_codice}.xlsx".upper()
                 
                 output = io.BytesIO()
@@ -111,15 +116,14 @@ for i, tab in enumerate(tabs):
                     
                     ws = wb.add_worksheet("Inventario")
                     ws.set_column('A:A', 20)
-                    ws.set_column('B:G', 15)
-                    ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI"], header_fmt)
+                    ws.set_column('B:H', 15)
+                    ws.write_row(0, 0, ["FOTO", "CASSA", "CODICE", "CLIENTE", "DATA", "LIVELLO", "PEZZI", "PEZZI TOTALI"], header_fmt)
                     
                     last_session = None
                     row_idx = 1
-                    for entry in dati_filtrati:
+                    for _, entry in df_temp.iterrows():
                         current_fmt = alt_fmt if row_idx % 2 == 0 else cell_fmt
                         
-                        # Logica di raggruppamento
                         if entry['session_id'] != last_session:
                             if entry.get('foto_bytes'):
                                 ws.insert_image(row_idx, 0, 'foto.jpg', {'image_data': io.BytesIO(entry['foto_bytes']), 'x_scale': 0.1, 'y_scale': 0.1})
@@ -130,6 +134,7 @@ for i, tab in enumerate(tabs):
                         
                         ws.write(row_idx, 5, str(entry['Livello']).upper(), current_fmt)
                         ws.write(row_idx, 6, entry['Pezzi'], current_fmt)
+                        ws.write(row_idx, 7, entry['Pezzi Totali'], current_fmt)
                         
                         ws.set_row(row_idx, 60)
                         last_session = entry['session_id']
