@@ -7,3 +7,4 @@ frontend
 opencv-python-headless
 xlsxwriter
 qrcode[pil]
+geopy
